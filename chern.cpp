@@ -9,12 +9,12 @@
 void cChern::distribution(){
 	int rank, size;
 	  const int root = 0;
-	  int *buffer = NULL;
+	  int *buffer = NULL, *sendcounts = NULL, *displs = NULL;
 	  Init(_argc, _argv);
 	  rank = COMM_WORLD.Get_rank();
 	  size = COMM_WORLD.Get_size();
-	  int epp = _NKX * _NKX / size; // the amount of workload for each processor
-	  int* recvB = new int[epp];
+	  sendcounts = new int[size];
+	  displs = new int[size];
 	  double* TotalEig = NULL;
 	  if (rank == root){
 	    buffer = new int[_NKX*_NKX];
@@ -22,9 +22,40 @@ void cChern::distribution(){
 	      buffer[i] = i;
 	    }
 	  }
-	  MPI_Scatter(buffer, epp, MPI_INT, recvB, epp, MPI_INT, root,COMM_WORLD); // evenly distributed
-	  //MPI_Scatterv(buffer, epp, MPI_INT, recvB, epp, MPI_INT, root,COMM_WORLD); // unevenly distributed
-	  double* localEig = new double[epp*4*pblock];
+	  int workload_remainder = ((_NKX*_NKX)%(size-1));
+	  int workload_even = int((_NKX*_NKX)/(size-1));
+	  int workload_largenumber = (workload_remainder<workload_even)?workload_even:workload_remainder; // return larger number of the two
+	  int workload_smallnumber = (workload_remainder<workload_even)?workload_remainder:workload_even; //return smaller number of the two
+	  int* recvB = new int[workload_largenumber];
+	for (int ig = 0; ig < size; ++ig) {
+		if (ig == size-1) {
+			displs[ig] = 0; // The size is precisely correct.
+			sendcounts[ig] = workload_remainder; // the last processor does the variable amount of work.
+		} else {
+			displs[ig] = workload_largenumber-workload_smallnumber; // fill in the blanks for the offload.
+			sendcounts[ig] = workload_even;
+		}
+	}
+	// we can define a function here for recvcount, which tells the amount of data to receive as a function of rank.
+	int epp;
+	if (rank == size-1) {
+		epp = workload_remainder;
+	} else {
+		epp = workload_even;
+	}
+	MPI_Scatterv(buffer, sendcounts, displs, MPI_INT, recvB, epp, MPI_INT, root, COMM_WORLD); // unevenly distributed
+
+	// Or, we can define the data type by ourselves. (need to change the gatherv correspondingly)
+//	MPI_Datatype recvtype;
+//	if (rank == size-1) {
+//		MPI_Type_vector( workload_remainder, 1, workload_remainder, MPI_INT, &recvtype);
+//	} else {
+//		MPI_Type_vector( workload_even, 1, workload_even, MPI_INT, &recvtype);
+//	}
+//	MPI_Type_commit( &recvtype );
+//	MPI_Scatterv(buffer, sendcounts, displs, MPI_INT, recvB, 1, recvtype, root, COMM_WORLD); // unevenly distributed
+
+	double* localEig = new double[epp*4*pblock];
 	  SelfAdjointEigenSolver<MatrixXcd> ces;
 	  for (int i=0; i<epp; ++i) {
 	    update(recvB[i]);
@@ -40,16 +71,21 @@ void cChern::distribution(){
 	  if(rank == root){
 	    TotalEig = new double[_NKX*_NKX*4*pblock];
 	  }
-	  MPI_Gather(localEig, epp*4*pblock, MPI_DOUBLE, TotalEig, epp*4*pblock, MPI_DOUBLE, root, COMM_WORLD);
-	  //MPI_Gatherv(localEig, epp*4*pblock, MPI_DOUBLE, TotalEig, epp*4*pblock, MPI_DOUBLE, root, COMM_WORLD);
+	  MPI_Gatherv(localEig, epp*4*pblock, MPI_DOUBLE, TotalEig, sendcounts, displs, MPI_DOUBLE, root, COMM_WORLD);
+	  int epp_var;
 	  if (rank == root){
 	    ofstream bdg_output;
 	    bdg_output.open("spectrum_2109.OUT"); // TODO: modify output file name
 	    assert(bdg_output.is_open());
 	    for(int i = 0; i<size; ++i){
-	    	for(int j = 0; j<epp; ++j){
+	    	if (i == size-1) {
+	    		epp_var = workload_remainder;
+	    	} else {
+	    		epp_var = workload_even;
+	    	}
+	    	for(int j = 0; j<epp_var; ++j){
 	    		for(int q = 0; q<4*pblock; ++q){
-	    			bdg_output << TotalEig[i*4*pblock*epp+j*4*pblock+q] << '\t';
+	    			bdg_output << TotalEig[i*4*pblock*epp_var+j*4*pblock+q] << '\t';
 	    		}
 	    		bdg_output << endl;
 	    	}

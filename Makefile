@@ -15,4 +15,4 @@ chern.o: chern.cpp
 	$(CC) $(CFLAGS) chern.cpp
 
 clean:
-	rm -rf *.o chern
+	rm *.o chern *~ *#
