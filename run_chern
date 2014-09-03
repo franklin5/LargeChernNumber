@@ -1,0 +1,7 @@
+#!/bin/bash 
+# make 
+# Currently, 7 has to be specified exactly here. Otherwise, integer division conversion may be encountered and this needs to be fixed in the future for a more robust mpi paradigm. 
+mpirun -np 7 chern 
+#mpirun -np 3 chern 
+# >& screen.out
+
