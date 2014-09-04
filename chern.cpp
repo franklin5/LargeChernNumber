@@ -8,96 +8,128 @@
 
 void cChern::distribution(){
 	int rank, size;
-	  const int root = 0;
-	  int *buffer = NULL, *sendcounts = NULL, *displs = NULL;
-	  Init(_argc, _argv);
-	  rank = COMM_WORLD.Get_rank();
-	  size = COMM_WORLD.Get_size();
-	  sendcounts = new int[size];
-	  displs = new int[size];
-	  double* TotalEig = NULL;
-	  if (rank == root){
-	    buffer = new int[_NKX*_NKX];
-	    for(int i = 0; i< _NKX*_NKX; ++i){
-	      buffer[i] = i;
-	    }
-	  }
-	  int workload_remainder = ((_NKX*_NKX)%(size-1));
-	  int workload_even = int((_NKX*_NKX)/(size-1));
-	  int workload_largenumber = (workload_remainder<workload_even)?workload_even:workload_remainder; // return larger number of the two
-	  int workload_smallnumber = (workload_remainder<workload_even)?workload_remainder:workload_even; //return smaller number of the two
-	  int* recvB = new int[workload_largenumber];
-	for (int ig = 0; ig < size; ++ig) {
-		if (ig == size-1) {
-			displs[ig] = 0; // The size is precisely correct.
-			sendcounts[ig] = workload_remainder; // the last processor does the variable amount of work.
-		} else {
-			displs[ig] = workload_largenumber-workload_smallnumber; // fill in the blanks for the offload.
-			sendcounts[ig] = workload_even;
+	const int root = 0;
+	int *sbuffer = NULL;
+	Init(_argc, _argv);
+	rank = COMM_WORLD.Get_rank();
+	size = COMM_WORLD.Get_size();
+	double* TotalEig = NULL;
+	if (rank == root){
+		sbuffer = new int[_NKX*_NKX];
+		for(int i = 0; i< _NKX*_NKX; ++i){
+		  sbuffer[i] = i;
 		}
 	}
-	// we can define a function here for recvcount, which tells the amount of data to receive as a function of rank.
-	int epp;
-	if (rank == size-1) {
-		epp = workload_remainder;
-	} else {
-		epp = workload_even;
+	int workload_remainder = (_NKX*_NKX) % (size);
+	int workload_even = int ((_NKX*_NKX)/(size)); // in the special case of workload_remainder==0, the last processor is wasted. But should be fine.
+	int** recvB = new int*[size];
+	double** localEig = new double*[size];
+	int *sendcounts = NULL,  *displs = NULL; // Note: sbuffer, sendcounts, displs, stype are significant for the root process only. But we are spreading over all ranks.
+	sendcounts = new int[size];  displs = new int[size];
+	int *recvcounts = NULL,  *displs_r = NULL; // Note: rbuf, rcounts, displs, rtype are significant for the root process only.
+		recvcounts = new int[size];  displs_r = new int[size];
+	for (int ig = 0; ig < size; ++ig) {
+		displs[ig] = ig*workload_even; // displacement relative to sbuffer
+		displs_r[ig] = ig*workload_even*4*pblock; // displacement relative to sbuffer
+		if (ig == size-1) {
+		  recvB[ig] = new int[workload_remainder];
+		  localEig[ig] = new double[workload_remainder*4*pblock];
+		  sendcounts[ig] = workload_remainder; // the last processor does the variable amount of work.
+		  recvcounts[ig] = workload_remainder*4*pblock;
+		} else {
+		  recvB[ig] = new int[workload_even];
+		  localEig[ig] = new double[workload_even*4*pblock];
+		  sendcounts[ig] = workload_even;
+		  recvcounts[ig] = workload_even*4*pblock;
+		}
 	}
-	MPI_Scatterv(buffer, sendcounts, displs, MPI_INT, recvB, epp, MPI_INT, root, COMM_WORLD); // unevenly distributed
-
-	// Or, we can define the data type by ourselves. (need to change the gatherv correspondingly)
-//	MPI_Datatype recvtype;
-//	if (rank == size-1) {
-//		MPI_Type_vector( workload_remainder, 1, workload_remainder, MPI_INT, &recvtype);
-//	} else {
-//		MPI_Type_vector( workload_even, 1, workload_even, MPI_INT, &recvtype);
+	int epp_var;
+	if (rank == size-1) {
+			epp_var = workload_remainder;
+	} else {
+			epp_var = workload_even;
+	}
+	//cout << rank << '\t' << epp_var << endl;
+	// This is a good way of chekcing and simulating access to the communicated value.
+	//cout << rank << '\t' << sendcounts[rank] << '\t' << displs[rank] << endl;
+	//	if (rank == root) {
+	//		for (int ig = 0; ig < size; ++ig) {
+	//			for (int temp = displs[ig]; temp < displs[ig]+sendcounts[ig]; ++temp) {
+	//				cout << sbuffer[temp] << '\t';
+	//			}
+	//			cout << endl;
+	//		}
+	//
+	//	}
+	// unevenly distributed:
+	 MPI_Scatterv(sbuffer, sendcounts, displs, MPI_INT, &recvB[rank][0], epp_var, MPI_INT, root, COMM_WORLD); // worked without derived datatpe
+	 //	displs 	array specifying the displacement relative to sbuffer at which to place the incoming data from corresponding process,
+	 // MPI_Scatterv(sbuffer, sendcounts, displs, MPI_INT, rptr, 1, recvtype, root, COMM_WORLD);
+	 // TODO: derived datatype implementation?
+//		MPI_Datatype recvtype;
+//		MPI_Datatype sendtype;
+//		MPI_Type_vector( epp_var, 1, epp_var, MPI_INT, 	&recvtype);
+//		MPI_Type_vector( epp_var, 1, epp_var, MPI_DOUBLE, &sendtype);
+//		MPI_Type_commit( &recvtype );
+//		MPI_Type_commit( &sendtype );
+	 // helpful examples:
+	 // https://www.cac.cornell.edu/ranger/MPIcc/gathervscatterv.aspx
+	 // http://www.mpi-forum.org/docs/mpi-1.1/mpi-11-html/node72.html
+	 // http://www.mpi-forum.org/docs/mpi-1.1/mpi-11-html/node72.html
+	 // http://static.msi.umn.edu/tutorial/scicomp/general/MPI/deriveddata/vector_c.html
+// This is to check if recvB has received correct value from sbuffer, via scatterv.
+//	cout << "rank=" << rank << "recvB=";
+//	for (int i=0; i<epp_var; ++i) {
+//			 cout << recvB[rank][i] << '\t';
 //	}
-//	MPI_Type_commit( &recvtype );
-//	MPI_Scatterv(buffer, sendcounts, displs, MPI_INT, recvB, 1, recvtype, root, COMM_WORLD); // unevenly distributed
-
-	double* localEig = new double[epp*4*pblock];
-	  SelfAdjointEigenSolver<MatrixXcd> ces;
-	  for (int i=0; i<epp; ++i) {
-	    update(recvB[i]);
-	    clock_t start = clock();
-	    ces.compute(_bdg_H); // eigenvectors are also computed.
-	    clock_t end = clock();
-	    cout << double (end-start)/ (double) CLOCKS_PER_SEC  << endl;
-	    for(int j = 0; j < 4*pblock; ++j){
-	      localEig[j+i*4*pblock]=ces.eigenvalues()[j];
-	    }
-	    cout << "rank " << recvB[i] << " is finished out of epp "<< epp << endl;
-	  }
-	  if(rank == root){
-	    TotalEig = new double[_NKX*_NKX*4*pblock];
-	  }
-	  MPI_Gatherv(localEig, epp*4*pblock, MPI_DOUBLE, TotalEig, sendcounts, displs, MPI_DOUBLE, root, COMM_WORLD);
-	  int epp_var;
-	  if (rank == root){
-	    ofstream bdg_output;
-	    bdg_output.open("spectrum_2109.OUT"); // TODO: modify output file name
-	    assert(bdg_output.is_open());
-	    for(int i = 0; i<size; ++i){
-	    	if (i == size-1) {
-	    		epp_var = workload_remainder;
-	    	} else {
-	    		epp_var = workload_even;
-	    	}
-	    	for(int j = 0; j<epp_var; ++j){
-	    		for(int q = 0; q<4*pblock; ++q){
-	    			bdg_output << TotalEig[i*4*pblock*epp_var+j*4*pblock+q] << '\t';
-	    		}
-	    		bdg_output << endl;
-	    	}
-	    	bdg_output << endl;
-	    }
-	    bdg_output.close();
-	  }
-	  Finalize();
-	  delete []localEig;
-	  delete []TotalEig;
-	  delete []buffer;
-	  delete []recvB;
+//	cout << endl;
+	SelfAdjointEigenSolver<MatrixXcd> ces;
+	for (int i=0; i<epp_var; ++i) {
+		//cout << "recvB[" << rank << "][" << i << "] = " << recvB[rank][i] << endl;
+		update(recvB[rank][i]);
+		//clock_t start = clock();
+		ces.compute(_bdg_H,0); // eigenvectors are also computed.
+		//ces.compute(_bdg_H); // eigenvectors are also computed.
+		//clock_t end = clock();
+		//cout << double (end-start)/ (double) CLOCKS_PER_SEC  << endl;
+		for(int j = 0; j < 4*pblock; ++j){
+		  localEig[rank][j+i*4*pblock]=ces.eigenvalues()[j];
+		}
+		//cout << "rank " << rank << " is finished out of epp "<< epp_var << endl;
+	}
+	if(rank == root){
+		TotalEig = new double[_NKX*_NKX*4*pblock];
+	}
+	cout << "dsafasdfwef" << epp_var << endl;
+	MPI_Gatherv(&localEig[rank][0], epp_var*4*pblock, MPI_DOUBLE, TotalEig, recvcounts, displs_r, MPI_DOUBLE, root, COMM_WORLD);
+	// TODO: gatherv still faces problem. missing values from scatterv.
+	// MPI_Gatherv(&localEig[rank][0], 1, sendtype, TotalEig, sendcounts, displs, MPI_DOUBLE, root, COMM_WORLD);
+	if (rank == root){
+	ofstream bdg_output;
+	bdg_output.open("spectrum_2109.OUT"); // TODO: modify output file name
+	assert(bdg_output.is_open());
+	for(int i = 0; i<size; ++i){
+		for(int j = 0; j<epp_var; ++j){
+			for(int q = 0; q<4*pblock; ++q){
+				bdg_output << TotalEig[i*4*pblock*epp_var+j*4*pblock+q] << '\t';
+			}
+			bdg_output << endl;
+		}
+		bdg_output << endl;
+	}
+	bdg_output.close();
+	}
+	Finalize();
+	for (int ig = 0; ig < size; ++ig) {
+		delete []localEig[ig];
+		delete []recvB[ig];
+	}
+	delete []localEig;
+	delete []recvB;
+	delete []TotalEig;
+	delete []sbuffer;
+	delete []sendcounts;
+	delete []displs;
 }
 
 void cChern::construction(){
@@ -146,8 +178,7 @@ void cChern::update(int nk){
 	  		}
 	  }
   } else {
-	  // nk = nkx+ nky * NKX
-	  int nkx = nk % _NKX;     // --> the modulo
+	  int nkx = nk % _NKX;     // --> the modulo (because nk = nkx+ nky * NKX )
 	  int nky = int (nk/_NKX); // --> the floor
 	  double kmax = 2.0; // TODO: modify momentum space cutoff value
 	  double kx = -kmax + nkx * kmax *2.0 /(_NKX-1);
