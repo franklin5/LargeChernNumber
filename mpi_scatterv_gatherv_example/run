@@ -1,0 +1,8 @@
+
+#!/bin/bash
+# use --showme at the end will give the full wrapper info.
+#mpicxx -I/home/ld7/bin/openmpi-1.8.1/installation/include main.cpp -limf -lm -o scatterv_gatherv
+mpicxx main.cpp -limf -lm -o scatterv_gatherv
+#mpicxx gatherv_example.cpp -limf -lm -o scatterv_gatherv
+mpirun -np 3 scatterv_gatherv
+rm scatterv_gatherv
