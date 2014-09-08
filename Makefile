@@ -1,7 +1,6 @@
 CC=mpicxx
-openmpi = /home/ld7/bin/openmpi-1.8.1/installation/
 eigenbin = /home/ld7/bin	
-CFLAGS=-c -Wall -I${openmpi}/include -I${eigenbin}
+CFLAGS=-c -Wall -g -I${eigenbin}
 LFLAGS=-limf -lm
 all: chern
 
@@ -14,5 +13,7 @@ main.o: main.cpp
 chern.o: chern.cpp
 	$(CC) $(CFLAGS) chern.cpp
 
+touch: 
+	touch *.cpp *.h
 clean:
 	rm *.o chern *~ *#

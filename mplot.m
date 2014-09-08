@@ -3,7 +3,7 @@ clc
 clf
 EK = load('spectrum_2109.OUT');
 NKX = sqrt(length(EK(:,1)));
-kmax = 5;
+kmax = 2;
 NK = (NKX-1)/2;
 akx = -kmax:2*kmax/(NKX-1):kmax;aky = akx;
 [AKX,AKY]=meshgrid(akx,aky);
@@ -27,5 +27,6 @@ ylabel('k_y/k_F')
 zlabel('E(k_x,k_y)/(pi/T)')
 title('hi=2.1,hf=0.9')
 view(3)
-axis([-5 5 -5 5 -1 1])
+axis([-kmax kmax -kmax kmax -5 5])
 view([0 0])
+%axis auto
