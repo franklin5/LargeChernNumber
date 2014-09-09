@@ -14,6 +14,6 @@ chern.o: chern.cpp
 	$(CC) $(CFLAGS) chern.cpp
 
 touch: 
-	touch *.cpp *.h
+	touch *.h
 clean:
 	rm *.o chern *~ *#

@@ -27,6 +27,15 @@ ylabel('k_y/k_F')
 zlabel('E(k_x,k_y)/(pi/T)')
 title('hi=2.1,hf=0.9')
 view(3)
-axis([-kmax kmax -kmax kmax -5 5])
+axis([-kmax kmax -kmax kmax -3 3])
 view([0 0])
 %axis auto
+figure(2)
+nky = NK+1;
+for np = 1:cutoffP
+    temp = energy(:,nky,np)/(pi/Tperiod);
+    plot(akx,temp)
+    hold on
+end
+hold off
+axis([-kmax kmax -3 3])
