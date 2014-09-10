@@ -23,6 +23,7 @@ void cChern::distribution(){
   int *sendcounts, *displs, *recvcounts, *displs_r;
   double  *localEig, *TotalEig;
   complex<double> chern_rank;
+  double chern_rank_real, total_chern;
   const int root = 0;
   int offset;
   //  SelfAdjointEigenSolver<MatrixXcd> ces;
@@ -51,17 +52,21 @@ void cChern::distribution(){
       chern_rank = complex<double> (0.0,0.0);
       for (int i=0; i<recvcount; ++i) {
 	//cout << "rank = " << ig << "recvbuf[" << i << "] = " << recvbuf[i] << endl;
+	clock_t start = clock(); 
 	update(recvbuf[i]);
+	clock_t end = clock(); 
+	cout << "rank " << rank << " has finished task " << i << "out of " << recvcount << "jobs with " << double (end-start)/ (double) CLOCKS_PER_SEC  << "seconds." << endl;
 	chern_rank += _chern;
       }
       cout << "rank " << rank << " has finished "<< recvcount << " tasks, " << " and chern_rank = " << chern_rank << endl;
     }
     MPI_Barrier(COMM_WORLD);
   }
-
-  //  int MPI_Reduce(void *sendbuf, void *recvbuf, int count, MPI_Datatype datatype, MPI_Op op, int root, MPI_Comm comm);
+  chern_rank_real = chern_rank.real();
+  MPI_Reduce(&chern_rank_real, &total_chern, 1, MPI_DOUBLE, MPI_SUM, root, MPI_COMM_WORLD);
 
   if (root==rank) {
+    cout << "Total Chern Number is: " << total_chern << endl;
     delete []sendbuf;
     delete []sendcounts;
     delete []displs;
@@ -113,15 +118,16 @@ void cChern::update(int nk){
 	  t += dt;
 	}
 	Gamma2 = Gamma2/_T*dt;
-	//	  			cout << Gamma2 << endl;
+	//cout << Gamma2 << endl;
 	_bdg_H(i+2*pblock,j+pblock) = Gamma2;
 	_bdg_H(i+3*pblock,j) = -Gamma2;
       }
     }
+    cout << "construction is finished" << endl;
   } else {
     int nkx = nk % _NKX;     // --> the modulo (because nk = nkx+ nky * NKX )
     int nky = int (nk/_NKX); // --> the floor
-    double kmax = 2.0; // TODO: modify momentum space cutoff value
+    double kmax = 5.0; // TODO: modify momentum space cutoff value
     double kx = -kmax + nkx * kmax *2.0 /(_NKX-1);
     double ky = -kmax + nky * kmax *2.0 /(_NKX-1);
     SelfAdjointEigenSolver<MatrixXcd> ces;
@@ -135,7 +141,7 @@ void cChern::update(int nk){
 	update_kxky(qx,qy);
 	ces.compute(_bdg_H); 
 	_loopA = ces.eigenvectors();
-	cout << "_loopA is finished." << endl;
+	//	cout << "_loopA is finished." << endl;
 	break;
       case 2:
 	qx = kx + dk;
@@ -143,7 +149,7 @@ void cChern::update(int nk){
 	update_kxky(qx,qy);
 	ces.compute(_bdg_H); 
 	_loopB = ces.eigenvectors();
-	cout << "_loopB is finished." << endl;
+	//	cout << "_loopB is finished." << endl;
 	break;
       case 3:
 	qx = kx + dk;
@@ -151,7 +157,7 @@ void cChern::update(int nk){
 	update_kxky(qx,qy);
 	ces.compute(_bdg_H); 
 	_loopC = ces.eigenvectors();
-	cout << "_loopC is finished." << endl;
+	//	cout << "_loopC is finished." << endl;
 	break;
       case 4:
 	qx = kx - dk;
@@ -159,7 +165,7 @@ void cChern::update(int nk){
 	update_kxky(qx,qy);
 	ces.compute(_bdg_H); 
 	_loopD = ces.eigenvectors();
-	cout << "_loopD is finished." << endl;
+	//	cout << "_loopD is finished." << endl;
 	break;
       default:
 	break;
@@ -167,23 +173,28 @@ void cChern::update(int nk){
     }
     int lowerbound;
     for(int ip = 0; ip < 2*pblock;++ip){
-      if (ces.eigenvalues()[ip]/(M_PI/_T) > -1.1) {// Questionable threshold definition for all momentum values...
+      if (ces.eigenvalues()[ip]/(M_PI/_T) > -1.0) {
+// Questionable threshold definition for all momentum values...
 	lowerbound = ip;
 	break;
       }
     }
-    cout << "lower bound = " << lowerbound << " upper bound = " << 2*pblock << endl; // There has got to be another way of finding lower bound for the Floquet truncation in first energy zone.
+    //    cout << "lower bound = " << lowerbound << " upper bound = " << 2*pblock << endl; // There has got to be another way of finding lower bound for the Floquet truncation in first energy zone.
     _chern = complex<double> (1.0,0.0);
+    complex<double> temp;
     for(int ip = lowerbound; ip < 2*pblock; ++ip) {
-      //_temploop = _loopA.col(ip);
-      //      cout << _loopA.col(ip).adjoint() * _loopB.col(ip) << endl;
-      _chern = _chern * _loopA.col(ip).adjoint() * _loopB.col(ip);
-      _chern = _chern * _loopB.col(ip).adjoint() * _loopC.col(ip);
-      _chern = _chern * _loopC.col(ip).adjoint() * _loopD.col(ip);
-      _chern = _chern * _loopD.col(ip).adjoint() * _loopA.col(ip);
+      temp = _loopA.col(ip).adjoint() * _loopB.col(ip);
+      _chern = _chern * temp/abs(temp);
+      temp = _loopB.col(ip).adjoint() * _loopC.col(ip);
+      _chern = _chern * temp/abs(temp);
+      temp = _loopC.col(ip).adjoint() * _loopD.col(ip);
+      _chern = _chern * temp/abs(temp);
+      temp = _loopD.col(ip).adjoint() * _loopA.col(ip);
+      _chern = _chern * temp/abs(temp);
     }
     _chern = complex<double>(log(std::abs(_chern)),atan(_chern.imag()/_chern.real()));
-    cout << _chern << endl;
+    _chern = _chern/2/M_PI/complex<double>(0.0,1.0);
+    //cout << _chern << endl;
   }
 }	    
 
