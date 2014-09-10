@@ -1,7 +1,7 @@
 clear
 clc
 clf
-EK = load('spectrum_2109.OUT');
+EK = load('spectrum_synthetic.OUT');
 NKX = sqrt(length(EK(:,1)));
 kmax = 2;
 NK = (NKX-1)/2;
@@ -30,3 +30,15 @@ view(3)
 axis([-kmax kmax -kmax kmax -5 5])
 view([0 0])
 %axis auto
+
+% clear
+% clc
+% figure(3)
+% Delta = load('test_Delta.OUT'); 
+% T = 26.24;
+% t= 0:0.0005:T;
+% plot(t,Delta(:,1),'r',t,Delta(:,2),'b')
+% legend('real','imag')
+% hold on
+% plot(t,0.2*cos(2*pi/T*t),'m')
+% hold off

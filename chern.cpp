@@ -84,7 +84,7 @@ void cChern::distribution(){
   if (rank == root) {
     int itemp;
     ofstream bdg_output;
-    bdg_output.open("spectrum_2109.OUT"); // TODO: modify output file name
+    bdg_output.open("spectrum_synthetic.OUT"); // TODO: modify output file name
     assert(bdg_output.is_open());
     for(int i =0;i<size;++i){    
       itemp = compute_count(i,size);
@@ -129,28 +129,17 @@ void cChern::update(int nk){
 	  int p, q;
 	  // The off-diagonal coupling introduced from time-dependent order parameter should be computed only here.
 	  complex<double> Gamma2;
-	  FILE *sf_inputR, *sf_inputI;
-	  sf_inputR = fopen ("Rdata_2109.dat","r"); // TODO: modify input file name
-	  sf_inputI = fopen ("Idata_2109.dat","r");
-	  assert (sf_inputR != NULL);
-	  assert (sf_inputI != NULL);
 	  double dt = 0.0005;
-	  double t;
-	  VectorXcd Delta_t(100000);
+	  double t = 0.0;
+	  VectorXd Delta_t(100000);
 	  Delta_t.setZero();
 	  int count = 0;
-	  double reD, imD;
-//	  ofstream test_output;
-//	  test_output.open("test_Delta.OUT"); // TODO: modify output file name
-//	  assert(test_output.is_open());
-	  while (fscanf(sf_inputR, "%lf", &reD) != EOF && fscanf(sf_inputI, "%lf", &imD) != EOF ){
-		Delta_t(count) = complex<double>(reD,imD);
+	  while (t<_T){
+	    Delta_t(count) = 0.2*cos(2*M_PI*t/_T);
 //		test_output << reD << '\t' << imD << endl;
 	  	count++;
+		t+=dt;
 	  }
-//	  test_output.close();
-	  fclose (sf_inputR);
-	  fclose (sf_inputI);
 	  for (int i = 0; i < pblock; ++i) {
 	  		p = i-_PMAX;
 	  		for (int j = 0; j < pblock; ++j) {
