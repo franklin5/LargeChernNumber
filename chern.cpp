@@ -18,6 +18,7 @@ int cChern::compute_count(int rank, int size){
 }
 
 void cChern::distribution(){
+  construction();
   int rank, size, recvcount, sendcount, stride;
   int *sendbuf, *recvbuf;
   int *sendcounts, *displs, *recvcounts, *displs_r;
@@ -48,14 +49,14 @@ void cChern::distribution(){
   for(int ig = 0; ig<size; ++ig) {
     if (ig ==rank){
       for (int i=0; i<recvcount; ++i) {
-	//cout << "rank = " << ig << "recvbuf[" << i << "] = " << recvbuf[i] << endl;
+	cout << "rank = " << ig << "recvbuf[" << i << "] = " << recvbuf[i] << "from " << recvcount << "out of total tasks " << _NKX2 << endl;
 	update(recvbuf[i]);
-	//clock_t start = clock();
+	clock_t start = clock();
 	ces.compute(_bdg_H,0); // eigenvectors are also computed.
 	//	ces.compute(_bdg_H); // eigenvectors are also computed.
 	//cout << _bdg_H << endl;
-	//clock_t end = clock();
-	//cout << double (end-start)/ (double) CLOCKS_PER_SEC  << endl;
+	clock_t end = clock();
+	cout << double (end-start)/ (double) CLOCKS_PER_SEC  << endl;
 	for(int j = 0; j < pblock4; ++j){
 	  localEig[j+i*pblock4]=ces.eigenvalues()[j];
 	  //	  cout << localEig[j+i*pblock4] << " ";
@@ -65,7 +66,7 @@ void cChern::distribution(){
       }
           cout << "rank " << rank << " has finished "<< recvcount << "tasks." << endl;
     }
-    //    MPI_Barrier(COMM_WORLD);
+    MPI_Barrier(COMM_WORLD);
   }
   if (root==rank) {
     TotalEig = new double [_NKX2*pblock4];
@@ -121,6 +122,7 @@ void cChern::distribution(){
 }
 void cChern::construction(){
 	update(-1); // arbitrary null construction.
+	cout << "construction completed" << endl;
 }
 
 void cChern::update(int nk){
@@ -135,7 +137,7 @@ void cChern::update(int nk){
 	  Delta_t.setZero();
 	  int count = 0;
 	  while (t<_T){
-	    Delta_t(count) = 0.2*cos(2*M_PI*t/_T);
+	    Delta_t(count) = 0.1-0.1*cos(2*M_PI*t/_T);
 //		test_output << reD << '\t' << imD << endl;
 	  	count++;
 		t+=dt;

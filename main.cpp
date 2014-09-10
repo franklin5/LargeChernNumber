@@ -18,7 +18,6 @@ int main(int argc, char** argv){
 	sPara para; para.t = 0.2; para.h = hf;para.v = 1.2;
 	sPhys phys; phys.mu = muInf; phys.T = Tperiod;
 	cChern Chern(para, phys, argc, argv);
-	Chern.construction();
 	Chern.distribution();
 	return 0;
 }
