@@ -57,7 +57,7 @@ void cChern::distribution(){
       }
       cout << "rank " << rank << " has finished "<< recvcount << " tasks, " << " and chern_rank = " << chern_rank << endl;
     }
-    MPI_Barrier(COMM_WORLD);
+    //    MPI_Barrier(COMM_WORLD);
   }
   chern_rank_real = chern_rank.real();
   MPI_Reduce(&chern_rank_real, &total_chern, 1, MPI_DOUBLE, MPI_SUM, root, MPI_COMM_WORLD);
@@ -84,7 +84,7 @@ void cChern::update(int nk){
   } else {
     int nkx = nk % _NKX;     // --> the modulo (because nk = nkx+ nky * NKX )
     int nky = int (nk/_NKX); // --> the floor
-    double kmax = 5.0; // TODO: modify momentum space cutoff value
+    double kmax = 10.0; // TODO: modify momentum space cutoff value
     double kx = -kmax + nkx * kmax *2.0 /(_NKX-1);
     double ky = -kmax + nky * kmax *2.0 /(_NKX-1);
     SelfAdjointEigenSolver<MatrixXcd> ces;
