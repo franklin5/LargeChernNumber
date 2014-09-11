@@ -51,16 +51,18 @@ void cChern::distribution(){
     if (ig ==rank){
       chern_rank = complex<double> (0.0,0.0);
       for (int i=0; i<recvcount; ++i) {
-	//cout << "rank = " << ig << "recvbuf[" << i << "] = " << recvbuf[i] << endl;
 	clock_t start = clock(); 
 	update(recvbuf[i]);
 	clock_t end = clock(); 
-	cout << "rank " << rank << " has finished task " << i << "out of " << recvcount << "jobs with " << double (end-start)/ (double) CLOCKS_PER_SEC  << "seconds." << endl;
+	if (rank==root) {
+	  cout << "rank = " << ig << "recvbuf[" << i << "] = " << recvbuf[i] << endl;
+	  cout << "rank " << rank << " has finished task " << i << "out of " << recvcount << "jobs with " << double (end-start)/ (double) CLOCKS_PER_SEC << "seconds, total tasks are " << _NKX2  << endl;
+	}
 	chern_rank += _chern;
       }
       cout << "rank " << rank << " has finished "<< recvcount << " tasks, " << " and chern_rank = " << chern_rank << endl;
     }
-    MPI_Barrier(COMM_WORLD);
+    //MPI_Barrier(COMM_WORLD); // REMEMBER!!! IT NOT ONLY BLOCKS COUT BUT ALSO BLOCKS UPDATE(RANK) function. THE parallel code has thus been serialized!!! Terrible mistake!!!
   }
   chern_rank_real = chern_rank.real();
   MPI_Reduce(&chern_rank_real, &total_chern, 1, MPI_DOUBLE, MPI_SUM, root, MPI_COMM_WORLD);
@@ -118,7 +120,7 @@ void cChern::update(int nk){
 	  t += dt;
 	}
 	Gamma2 = Gamma2/_T*dt;
-	//cout << Gamma2 << endl;
+	//	cout << Gamma2 << endl;
 	_bdg_H(i+2*pblock,j+pblock) = Gamma2;
 	_bdg_H(i+3*pblock,j) = -Gamma2;
       }
@@ -127,12 +129,14 @@ void cChern::update(int nk){
   } else {
     int nkx = nk % _NKX;     // --> the modulo (because nk = nkx+ nky * NKX )
     int nky = int (nk/_NKX); // --> the floor
-    double kmax = 5.0; // TODO: modify momentum space cutoff value
+    int lowerbound = -999; // negative flag
+    double kmax = 10.0; // TODO: modify momentum space cutoff value. If this is too large, say 5.0, the diagonalization result is strongly inaccurate...
     double kx = -kmax + nkx * kmax *2.0 /(_NKX-1);
     double ky = -kmax + nky * kmax *2.0 /(_NKX-1);
     SelfAdjointEigenSolver<MatrixXcd> ces;
     double dk = 0.5 * kmax * 2.0 /(_NKX-1);
     double qx, qy; 
+    VectorXd tempEig(pblock4);
     for (int i = 1; i < 5; ++i) {
       switch (i) {
       case 1:
@@ -142,6 +146,13 @@ void cChern::update(int nk){
 	ces.compute(_bdg_H); 
 	_loopA = ces.eigenvectors();
 	//	cout << "_loopA is finished." << endl;
+	for(int ip = 0; ip < 2*pblock;++ip){
+	  if (ces.eigenvalues()[ip]/(M_PI/_T) > -1.2) {
+	    // Questionable threshold definition 
+	    lowerbound = ip;
+	    break;
+	  } 
+	}
 	break;
       case 2:
 	qx = kx + dk;
@@ -170,16 +181,16 @@ void cChern::update(int nk){
       default:
 	break;
       }
-    }
-    int lowerbound;
-    for(int ip = 0; ip < 2*pblock;++ip){
-      if (ces.eigenvalues()[ip]/(M_PI/_T) > -1.0) {
-// Questionable threshold definition for all momentum values...
-	lowerbound = ip;
+      if (lowerbound > 0 && lowerbound < 2*pblock){
+	continue;
+      } else {
+	_chern = complex<double> (0.0,0.0); // no contribution needs to be added.
 	break;
       }
     }
-    //    cout << "lower bound = " << lowerbound << " upper bound = " << 2*pblock << endl; // There has got to be another way of finding lower bound for the Floquet truncation in first energy zone.
+    if (lowerbound > 0 && lowerbound < 2*pblock){
+    cout << "lower bound = " << lowerbound << " upper bound = " << 2*pblock << endl; 
+    // There has got to be another way of finding lower bound for the Floquet truncation in first energy zone.
     _chern = complex<double> (1.0,0.0);
     complex<double> temp;
     for(int ip = lowerbound; ip < 2*pblock; ++ip) {
@@ -195,6 +206,7 @@ void cChern::update(int nk){
     _chern = complex<double>(log(std::abs(_chern)),atan(_chern.imag()/_chern.real()));
     _chern = _chern/2/M_PI/complex<double>(0.0,1.0);
     //cout << _chern << endl;
+    }
   }
 }	    
 
