@@ -49,14 +49,13 @@ void cChern::distribution(){
   for(int ig = 0; ig<size; ++ig) {
     if (ig ==rank){
       for (int i=0; i<recvcount; ++i) {
-	cout << "rank = " << ig << "recvbuf[" << i << "] = " << recvbuf[i] << "from " << recvcount << "out of total tasks " << _NKX2 << endl;
 	update(recvbuf[i]);
 	clock_t start = clock();
 	ces.compute(_bdg_H,0); // eigenvectors are also computed.
 	//	ces.compute(_bdg_H); // eigenvectors are also computed.
 	//cout << _bdg_H << endl;
 	clock_t end = clock();
-	cout << double (end-start)/ (double) CLOCKS_PER_SEC  << endl;
+	cout << "rank = " << ig << " is doing job recvbuf[" << i << "] out of " << recvcount << "using time " <<  double (end-start)/ (double) CLOCKS_PER_SEC << endl;
 	for(int j = 0; j < pblock4; ++j){
 	  localEig[j+i*pblock4]=ces.eigenvalues()[j];
 	  //	  cout << localEig[j+i*pblock4] << " ";
@@ -64,9 +63,11 @@ void cChern::distribution(){
 	//	cout << endl;
 	//	cout << ces.eigenvalues() << endl;
       }
-          cout << "rank " << rank << " has finished "<< recvcount << "tasks." << endl;
+      if (rank==root){
+	cout << "rank " << rank << " has finished "<< recvcount << "tasks out of total" << _NKX2 << endl;
+      }
     }
-    MPI_Barrier(COMM_WORLD);
+    //    MPI_Barrier(COMM_WORLD);
   }
   if (root==rank) {
     TotalEig = new double [_NKX2*pblock4];

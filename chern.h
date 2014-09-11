@@ -27,7 +27,7 @@ public:
 	  pblock(2*_PMAX+1),
 	  // TODO: modify mmtn space cutoff for the bulk system
 	  pblock4(4*pblock),
-	  _MomentumSpaceCutoff(10),
+	  _MomentumSpaceCutoff(50),
 	  _NKX(2*_MomentumSpaceCutoff+1),
 	  _NKX2(_NKX*_NKX),
 	  _bdg_E(pblock4),
