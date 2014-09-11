@@ -163,7 +163,7 @@ void cChern::update(int nk){
   } else {
 	  int nkx = nk % _NKX;     // --> the modulo (because nk = nkx+ nky * NKX )
 	  int nky = int (nk/_NKX); // --> the floor
-	  double kmax = 2.0; // TODO: modify momentum space cutoff value
+	  double kmax = 5.0; // TODO: modify momentum space cutoff value
 	  double kx = -kmax + nkx * kmax *2.0 /(_NKX-1);
 	  double ky = -kmax + nky * kmax *2.0 /(_NKX-1);
 	  //	  cout << "kx = " << kx << ", " << "ky = " << ky << endl;
