@@ -49,14 +49,15 @@ void cChern::distribution(){
   for(int ig = 0; ig<size; ++ig) {
     if (ig ==rank){
       chern_rank = complex<double> (0.0,0.0);
+      cout << "rank" << ig << "has started"<< endl;
       for (int i=0; i<recvcount; ++i) {
 	clock_t start = clock(); 
         update(recvbuf[i]);
 	clock_t end = clock(); 
-	if (rank==root) cout << double (end-start)/ (double) CLOCKS_PER_SEC  << endl; 
+	if (rank==root) cout << "task " << recvbuf[i] <<"out of " << recvcount << "used " << double (end-start)/ (double) CLOCKS_PER_SEC  << endl; 
         chern_rank += _chern;
       }
-      //      cout << "rank " << rank << " has finished "<< recvcount << " tasks, " <<	" and chern_rank = " << chern_rank << endl;
+      cout << "rank " << rank << " has finished "<< recvcount << " tasks, " <<	" and chern_rank = " << chern_rank << endl;
     }
   }
   chern_rank_real = chern_rank.real();
