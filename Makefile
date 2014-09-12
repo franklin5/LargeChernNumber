@@ -1,6 +1,6 @@
 CC=mpicxx
 eigenbin = /home/ld7/bin	
-CFLAGS=-c -Wall -g -I${eigenbin}
+CFLAGS=-c -Wall -I${eigenbin}
 LFLAGS=-limf -lm
 all: chern
 

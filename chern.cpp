@@ -23,9 +23,10 @@ void cChern::distribution(){
   int *sendbuf, *recvbuf;
   int *sendcounts, *displs, *recvcounts, *displs_r;
   double  *localEig, *TotalEig;
+  complex<double> chern_rank;
+  double chern_rank_real, total_chern;
   const int root = 0;
   int offset;
-  SelfAdjointEigenSolver<MatrixXcd> ces;
   Init(_argc, _argv);
   rank = COMM_WORLD.Get_rank();
   size = COMM_WORLD.Get_size();
@@ -45,81 +46,30 @@ void cChern::distribution(){
   recvbuf = new int[recvcount]; // So is this array: rank dependent size        
   MPI_Scatterv(sendbuf,sendcounts,displs,MPI_INT,recvbuf,recvcount,MPI_INT,root,COMM_WORLD);
   stride = pblock4*recvcount;
-  localEig = new double[stride];  
   for(int ig = 0; ig<size; ++ig) {
     if (ig ==rank){
+      chern_rank = complex<double> (0.0,0.0);
       for (int i=0; i<recvcount; ++i) {
-	update(recvbuf[i]);
-	clock_t start = clock();
-	ces.compute(_bdg_H,0); // eigenvectors are also computed.
-	//	ces.compute(_bdg_H); // eigenvectors are also computed.
-	//cout << _bdg_H << endl;
-	clock_t end = clock();
-	cout << "rank = " << ig << " is doing job recvbuf[" << i << "] out of " << recvcount << "using time " <<  double (end-start)/ (double) CLOCKS_PER_SEC << endl;
-	for(int j = 0; j < pblock4; ++j){
-	  localEig[j+i*pblock4]=ces.eigenvalues()[j];
-	  //	  cout << localEig[j+i*pblock4] << " ";
-	}
-	//	cout << endl;
-	//	cout << ces.eigenvalues() << endl;
+	clock_t start = clock(); 
+        update(recvbuf[i]);
+	clock_t end = clock(); 
+	if (rank==root) cout << double (end-start)/ (double) CLOCKS_PER_SEC  << endl; 
+        chern_rank += _chern;
       }
-      if (rank==root){
-	cout << "rank " << rank << " has finished "<< recvcount << "tasks out of total" << _NKX2 << endl;
-      }
+      //      cout << "rank " << rank << " has finished "<< recvcount << " tasks, " <<	" and chern_rank = " << chern_rank << endl;
     }
-    //    MPI_Barrier(COMM_WORLD);
   }
+  chern_rank_real = chern_rank.real();
+  MPI_Reduce(&chern_rank_real, &total_chern, 1, MPI_DOUBLE, MPI_SUM, root, MPI_COMM_WORLD);
   if (root==rank) {
-    TotalEig = new double [_NKX2*pblock4];
-    recvcounts = new int[size];
-    displs_r = new int[size];
-    offset = 0;
-    for(int ig=0;ig<size;++ig){
-      recvcounts[ig] = compute_count(ig,size)*pblock4;
-      displs_r[ig] = offset;
-      offset += recvcounts[ig];
-      //cout << offset << " ";
-    }
-    //    cout << endl;
-  }
-  MPI_Gatherv(localEig, stride, MPI_DOUBLE, TotalEig, recvcounts, displs_r, MPI_DOUBLE, root, COMM_WORLD);
-  if (rank == root) {
-    int itemp;
-    ofstream bdg_output;
-    bdg_output.open("spectrum_synthetic.OUT"); // TODO: modify output file name
-    assert(bdg_output.is_open());
-    for(int i =0;i<size;++i){    
-      itemp = compute_count(i,size);
-      if( i != size-1) {
-	offset = itemp;
-      } else {
-	offset = offset; // offset is updated as size-2 position
-      }
-      //      cout << itemp << endl;
-      for (int j = 0; j<itemp;++j){
-	for (int q = 0; q<pblock4;++q){
-//	  cout << TotalEig[i*offset*pblock4+j*pblock4+q] << '\t';
-	  //	  cout << i*offset*pblock4+j*pblock4+q << '\t';
-	  bdg_output << TotalEig[i*offset*pblock4+j*pblock4+q] << '\t';
-	}
-//	cout << endl;
-	bdg_output << endl;
-      }
-      //      bdg_output << endl;
-    }
-    bdg_output.close();
-  }
-  if (root==rank) {
+    cout << "Total Chern Number is: " << total_chern << endl;
     delete []sendbuf;
     delete []sendcounts;
     delete []displs;
-    delete []TotalEig;
-    delete []recvcounts;
-    delete []displs_r;
   }
   delete []recvbuf;
-  delete []localEig;
   Finalize();
+
 }
 void cChern::construction(){
 	update(-1); // arbitrary null construction.
@@ -161,52 +111,85 @@ void cChern::update(int nk){
 	  		}
 	  }
   } else {
-	  int nkx = nk % _NKX;     // --> the modulo (because nk = nkx+ nky * NKX )
-	  int nky = int (nk/_NKX); // --> the floor
-	  double kmax = 5.0; // TODO: modify momentum space cutoff value
-	  double kx = -kmax + nkx * kmax *2.0 /(_NKX-1);
-	  double ky = -kmax + nky * kmax *2.0 /(_NKX-1);
-	  //	  cout << "kx = " << kx << ", " << "ky = " << ky << endl;
-	  // This is to test the bulk spectrum periodicity.
-	  update_kxky(kx,ky);
-
-	  /* This is left for the Chern number calculation using Ming's method.
-	  double dk = 0.5 * kmax * 2.0 /(_NKX-1);
-	  double q1x, q2x, q1y, q2y; // This is to form a small square loop. Idea taken from Ming Gong's code.
-	  for (int i = 0; i < 4; ++i) {
-		switch (i) {
-			case 1:
-				q1x = kx - dk;
-				q1y = ky - dk;
-				q2x = kx + dk;
-				q2y = ky - dk;
-				break;
-			case 2:
-				q1x = kx + dk;
-				q1y = ky - dk;
-				q2x = kx + dk;
-				q2y = ky + dk;
-				break;
-			case 3:
-				q1x = kx + dk;
-				q1y = ky + dk;
-				q2x = kx - dk;
-				q2y = ky + dk;
-				break;
-			case 4:
-				q1x = kx - dk;
-				q1y = ky + dk;
-				q2x = kx - dk;
-				q2y = ky - dk;
-				break;
-			default:
-				break;
-		}
-	  }
-	  update_kxky(q1x,q1y);
-
-	  update_kxky(q2x,q2y);
-	  */
+    int nkx = nk % _NKX;     // --> the modulo (because nk = nkx+ nky * NKX )   
+    int nky = int (nk/_NKX); // --> the floor                                   
+    int lowerbound = -999; // negative flag                                     
+    double kmax = 5.0; // TODO: modify momentum space cutoff value. If this is too large, say 5.0, the diagonalization result is strongly inaccurate...       
+      double kx = -kmax + nkx * kmax *2.0 /(_NKX-1);
+    double ky = -kmax + nky * kmax *2.0 /(_NKX-1);
+    SelfAdjointEigenSolver<MatrixXcd> ces;
+    double dk = 0.5 * kmax * 2.0 /(_NKX-1);
+    double qx, qy;
+    VectorXd tempEig(pblock4);
+    for (int i = 1; i < 5; ++i) {
+      switch (i) {
+      case 1:
+        qx = kx - dk;
+        qy = ky - dk;
+        update_kxky(qx,qy);
+        ces.compute(_bdg_H);
+        _loopA = ces.eigenvectors();
+        //      cout << "_loopA is finished." << endl;                          
+        for(int ip = 0; ip < 2*pblock;++ip){
+          if (ces.eigenvalues()[ip]/(M_PI/_T) > -1.001) {
+            // Questionable threshold definition                                
+            lowerbound = ip;
+            break;
+          }
+        }
+        break;
+      case 2:
+        qx = kx + dk;
+        qy = ky - dk;
+        update_kxky(qx,qy);
+        ces.compute(_bdg_H);
+        _loopB = ces.eigenvectors();
+        //      cout << "_loopB is finished." << endl;                          
+        break;
+      case 3:
+	qx = kx + dk;
+        qy = ky + dk;
+        update_kxky(qx,qy);
+        ces.compute(_bdg_H);
+        _loopC = ces.eigenvectors();
+        //      cout << "_loopC is finished." << endl;                          
+        break;
+      case 4:
+        qx = kx - dk;
+        qy = ky + dk;
+        update_kxky(qx,qy);
+        ces.compute(_bdg_H);
+        _loopD = ces.eigenvectors();
+        //      cout << "_loopD is finished." << endl;                          
+        break;
+      default:
+        break;
+      }
+      if (lowerbound > 0 && lowerbound < 2*pblock){
+        continue;
+      } else {
+        _chern = complex<double> (0.0,0.0); // no contribution needs to be adde      
+	break;
+      }
+    }
+    if (lowerbound > 0 && lowerbound < 2*pblock){
+      //      cout << "lower bound = " << lowerbound << " upper bound = " << 2*pblock <<endl;
+ 
+  _chern = complex<double> (1.0,0.0);
+ complex<double> temp;
+ for(int ip = lowerbound; ip < 2*pblock; ++ip) {
+   temp = _loopA.col(ip).adjoint() * _loopB.col(ip);
+   _chern = _chern * temp/abs(temp);
+   temp = _loopB.col(ip).adjoint() * _loopC.col(ip);
+   _chern = _chern * temp/abs(temp);
+   temp = _loopC.col(ip).adjoint() * _loopD.col(ip);
+   _chern = _chern * temp/abs(temp);
+   temp = _loopD.col(ip).adjoint() * _loopA.col(ip);
+   _chern = _chern * temp/abs(temp);
+ }
+ _chern = complex<double>(log(std::abs(_chern)),atan(_chern.imag()/_chern.real()));
+ _chern = _chern/2/M_PI/complex<double>(0.0,1.0);
+    }
   }
 }
 
