@@ -54,13 +54,19 @@ void cChern::distribution(){
 	clock_t start = clock(); 
         update(recvbuf[i]);
 	clock_t end = clock(); 
-	if (rank==root) cout << "task " << recvbuf[i] <<"out of " << recvcount << "used " << double (end-start)/ (double) CLOCKS_PER_SEC  << endl; 
+	//	if (rank==root) cout << "task " << recvbuf[i] <<"out of " << recvcount << "used " << double (end-start)/ (double) CLOCKS_PER_SEC  << endl; 
         chern_rank += _chern;
       }
       cout << "rank " << rank << " has finished "<< recvcount << " tasks, " <<	" and chern_rank = " << chern_rank << endl;
     }
   }
   chern_rank_real = chern_rank.real();
+  for(int ig = 0; ig<size; ++ig) {
+    if (ig ==rank){
+    cout << "rank" << ig << "has chern number"<< chern_rank << endl;
+    }
+    MPI_Barrier(COMM_WORLD);
+  }
   MPI_Reduce(&chern_rank_real, &total_chern, 1, MPI_DOUBLE, MPI_SUM, root, MPI_COMM_WORLD);
   if (root==rank) {
     cout << "Total Chern Number is: " << total_chern << endl;
