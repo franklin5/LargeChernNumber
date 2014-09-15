@@ -1,6 +1,6 @@
 clear
 clc
-clf
+%clf
 EK = load('spectrum_synthetic.OUT');
 NKX = sqrt(length(EK(:,1)));
 kmax = 2;
@@ -15,7 +15,7 @@ for nk = 0:NKX*NKX-1
     energy(nkx+1,nky+1,:) = EK(nk+1,:);
 end
 Tperiod = 26.24;
-figure(1)
+figure
 for np = 1:cutoffP
     temp(:,:) = energy(:,:,np)/(pi/Tperiod);
     mesh(AKX,AKY,temp)
@@ -27,18 +27,18 @@ ylabel('k_y/k_F')
 zlabel('E(k_x,k_y)/(pi/T)')
 title('hi=2.1,hf=0.9')
 view(3)
-axis([-kmax kmax -kmax kmax -5 5])
+axis([-kmax kmax -kmax kmax -2.5 2.5])
 view([0 0])
 %axis auto
-
-clear
-clc
-figure(3)
-Delta = load('test_Delta.OUT'); 
-T = 26.24;
-t= 0:0.0005:T;
-plot(t,Delta(:,1),'r',t,Delta(:,2),'b')
-legend('real','imag')
-hold on
-plot(t,0.1-0.1*cos(2*pi/T*t),'m',t,sqrt(Delta(:,1).^2+Delta(:,2).^2),'k')
-hold off
+% 
+% clear
+% clc
+% figure(3)
+% Delta = load('test_Delta.OUT'); 
+% T = 26.24;
+% t= 0:0.0005:T;
+% plot(t,Delta(:,1),'r',t,Delta(:,2),'b')
+% legend('real','imag')
+% hold on
+% plot(t,0.1-0.1*cos(2*pi/T*t),'m',t,sqrt(Delta(:,1).^2+Delta(:,2).^2),'k')
+% hold off
