@@ -1,7 +1,7 @@
 clear
 clc
 %clf
-EK = load('spectrum_synthetic.OUT');
+EK = load('spectrum_2109.OUT');
 NKX = sqrt(length(EK(:,1)));
 kmax = 2;
 NK = (NKX-1)/2;
@@ -15,7 +15,7 @@ for nk = 0:NKX*NKX-1
     energy(nkx+1,nky+1,:) = EK(nk+1,:);
 end
 Tperiod = 26.24;
-figure
+figure(1)
 for np = 1:cutoffP
     temp(:,:) = energy(:,:,np)/(pi/Tperiod);
     mesh(AKX,AKY,temp)
@@ -28,7 +28,8 @@ zlabel('E(k_x,k_y)/(pi/T)')
 title('hi=2.1,hf=0.9')
 view(3)
 axis([-kmax kmax -kmax kmax -2.5 2.5])
-view([0 0])
+view([-25 2])
+%view([0 0])
 %axis auto
 % 
 % clear

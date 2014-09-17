@@ -23,14 +23,13 @@ void cChern::distribution(){
   int *sendbuf, *recvbuf;
   int *sendcounts, *displs, *recvcounts, *displs_r;
   double  *localEig, *TotalEig;
-  complex<double> chern_rank;
-  double chern_rank_real, total_chern;
   const int root = 0;
   int offset;
+  SelfAdjointEigenSolver<MatrixXcd> ces;
   Init(_argc, _argv);
   rank = COMM_WORLD.Get_rank();
   size = COMM_WORLD.Get_size();
-  if (rank == root){ // send process is only root significant                   
+  if (rank == root){ // send process is only root significant                
     sendbuf = new int[_NKX2];
     for(int i = 0; i< _NKX2; ++i){
       sendbuf[i] = i;
@@ -42,41 +41,74 @@ void cChern::distribution(){
       displs[i] = i*int(_NKX2/size);
     }
   }
-  recvcount = compute_count(rank,size); // This is a rank dependent variable.   
-  recvbuf = new int[recvcount]; // So is this array: rank dependent size        
-  MPI_Scatterv(sendbuf,sendcounts,displs,MPI_INT,recvbuf,recvcount,MPI_INT,root,COMM_WORLD);
-  stride = pblock4*recvcount;
-  for(int ig = 0; ig<size; ++ig) {
-    if (ig ==rank){
-      chern_rank = complex<double> (0.0,0.0);
-      cout << "rank" << ig << "has started"<< endl;
-      for (int i=0; i<recvcount; ++i) {
-	clock_t start = clock(); 
-        update(recvbuf[i]);
-	clock_t end = clock(); 
-	//	if (rank==root) cout << "task " << recvbuf[i] <<"out of " << recvcount << "used " << double (end-start)/ (double) CLOCKS_PER_SEC  << endl; 
-        chern_rank += _chern;
+  recvcount = compute_count(rank,size); 
+  recvbuf = new int[recvcount]; // So is this array: rank dependent size     
+    MPI_Scatterv(sendbuf,sendcounts,displs,MPI_INT,recvbuf,recvcount,MPI_INT,root ,COMM_WORLD);
+    stride = pblock4*recvcount;
+    localEig = new double[stride];
+    for(int ig = 0; ig<size; ++ig) {
+      if (ig ==rank){
+	for (int i=0; i<recvcount; ++i) {
+	  update(recvbuf[i]);
+	  ces.compute(_bdg_H,0); // eigenvectors are also computed.               
+	  for(int j = 0; j < pblock4; ++j){
+	    localEig[j+i*pblock4]=ces.eigenvalues()[j];
+	  }
+	}
+	cout << "rank " << rank << " has finished "<< recvcount << "tasks." << endl;
       }
-      cout << "rank " << rank << " has finished "<< recvcount << " tasks, " <<	" and chern_rank = " << chern_rank << endl;
     }
-  }
-  chern_rank_real = chern_rank.imag(); // curvature approach
-  for(int ig = 0; ig<size; ++ig) {
-    if (ig ==rank){
-    cout << "rank" << ig << "has chern number"<< chern_rank << endl;
+    if (root==rank) {
+      TotalEig = new double [_NKX2*pblock4];
+      recvcounts = new int[size];
+      displs_r = new int[size];
+      offset = 0;
+      for(int ig=0;ig<size;++ig){
+	recvcounts[ig] = compute_count(ig,size)*pblock4;
+	displs_r[ig] = offset;
+	offset += recvcounts[ig];
+	//cout << offset << " ";                                                  
+      }
+      //    cout << endl;                                                         
     }
-    MPI_Barrier(COMM_WORLD);
-  }
-  MPI_Reduce(&chern_rank_real, &total_chern, 1, MPI_DOUBLE, MPI_SUM, root, MPI_COMM_WORLD);
-  if (root==rank) {
-    cout << "Total Chern Number is: " << total_chern << endl;
-    delete []sendbuf;
-    delete []sendcounts;
-    delete []displs;
-  }
-  delete []recvbuf;
-  Finalize();
-
+    MPI_Gatherv(localEig, stride, MPI_DOUBLE, TotalEig, recvcounts, displs_r, MPI_DOUBLE, root, COMM_WORLD);
+    if (rank == root) {
+      int itemp;
+      ofstream bdg_output;
+      bdg_output.open("spectrum_2109.OUT"); // TODO: modify output file name      
+      assert(bdg_output.is_open());
+      for(int i =0;i<size;++i){
+	itemp = compute_count(i,size);
+	if( i != size-1) {
+	  offset = itemp;
+	} else {
+	  offset = offset; // offset is updated as size-2 position                
+	}
+	//      cout << itemp << endl;                                            
+	for (int j = 0; j<itemp;++j){
+	  for (int q = 0; q<pblock4;++q){
+	    //        cout << TotalEig[i*offset*pblock4+j*pblock4+q] << '\t';               
+	    //      cout << i*offset*pblock4+j*pblock4+q << '\t';                 
+	    bdg_output << TotalEig[i*offset*pblock4+j*pblock4+q] << '\t';
+	  }
+	  //      cout << endl;                                                           
+	  bdg_output << endl;
+	}
+	//      bdg_output << endl;                                               
+      }
+      bdg_output.close();
+    }
+    if (root==rank) {
+      delete []sendbuf;
+      delete []sendcounts;
+      delete []displs;
+      delete []TotalEig;
+      delete []recvcounts;
+      delete []displs_r;
+    }
+    delete []recvbuf;
+    delete []localEig;
+    Finalize();
 }
 void cChern::construction(){
   update(-1); // arbitrary null construction.
@@ -129,58 +161,13 @@ void cChern::update(int nk){
     }
   } else {
     int nkx = nk % _NKX;     // --> the modulo (because nk = nkx+ nky * NKX )   
-    int nky = int (nk/_NKX); // --> the floor                                   
-    int lowerbound = -999; // negative flag                                     
-    //    double kmax = 2.0; // TODO: modify momentum space cutoff value. If this is too large, say 5.0, the diagonalization result is strongly inaccurate...       
-    //    double kx = -kmax + nkx * kmax *2.0 /(_NKX-1);
-    //    double ky = -kmax + nky * kmax *2.0 /(_NKX-1);
-    double kx = gauss_kx[nkx];
-    double ky = gauss_ky[nky];
-    SelfAdjointEigenSolver<MatrixXcd> ces;
-    double dk = 0.5 * kmax * 2.0 /(_NKX-1);
-    complex<double> u,a,b,v,up,ap,bp,vp, Theta1,Theta2, temp;
-    complex<double> myI (0.0,1.0);
+    int nky = int (nk/_NKX); // --> the floor                             
+    double kmax = 2.0; // TODO: modify momentum space cutoff value        
+    double kx = -kmax + nkx * kmax *2.0 /(_NKX-1);
+    double ky = -kmax + nky * kmax *2.0 /(_NKX-1);
+    //      cout << "kx = " << kx << ", " << "ky = " << ky << endl;       
+    // This is to test the bulk spectrum periodicity.                     
     update_kxky(kx,ky);
-    ces.compute(_bdg_H);
-    _loopA = ces.eigenvectors();
-    for(int ip = 0; ip < 2*pblock;++ip){
-      if (ces.eigenvalues()[ip]/(M_PI/_T) > -1) {
-	lowerbound = ip;
-	break;
-      }
-    }
-    if (lowerbound < 0 || lowerbound > 2*pblock){
-      _chern = complex<double> (0.0,0.0); // no contribution needs to be added
-      cout << "no contribution is added" << endl;
-    } else {
-      cout  <<"lower bound = " << lowerbound << " upper bound = " << 2*pblock <<endl;
-      _chern = complex<double> (0.0,0.0);
-      Theta1 = complex<double> (0.0,0.0);
-      Theta2 = complex<double> (0.0,0.0);
-      temp = complex<double> (0.0,0.0);
- for(int ip = lowerbound; ip < 2*pblock; ++ip) {
-   for(int iq = lowerbound;iq<2*pblock;++iq){
-     if (iq != ip){
-       //       cout << "ip=" << ip << "iq" << iq << endl;
-       for(int i = 0;i<pblock;++i){
-	 u = _loopA(i*4,ip);
-	 a = _loopA(i*4+1,ip);
-	 b = _loopA(i*4+2,ip);
- 	 v = _loopA(i*4+3,ip);
-	 up = _loopA(i*4,iq);
-	 ap = _loopA(i*4+1,iq);
-	 bp = _loopA(i*4+2,iq);
- 	 vp = _loopA(i*4+3,iq);
-	 Theta1 += 2*kx*up*conj(u)+_v*ap*conj(u)+_v*up*conj(a)+2*kx*ap*conj(a)-2*kx*bp*conj(b)+_v*vp*conj(b)+_v*bp*conj(v)-2*kx*vp*conj(v);
-	 Theta2 += 2*ky*conj(up)*u-myI*_v*conj(up)*a+myI*_v*conj(ap)*u+2*ky*conj(ap)*a-2*ky*conj(bp)*b+myI*_v*conj(bp)*v-myI*_v*conj(vp)*b-2*ky*conj(vp)*v;
-	 }
-       temp = 1.0/(pow(ces.eigenvalues()[ip]-ces.eigenvalues()[iq],2.0)+myI*1e-9);
-       _chern += Theta1*Theta2*temp.real();
-     }
-   }
- }
-     _chern = -2.0*_chern/2/M_PI*gauss_w_ky[nky]* gauss_w_kx[nkx];
-    }
   }
 }
 void cChern::update_kxky(double kx, double ky){
