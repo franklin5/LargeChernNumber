@@ -54,7 +54,7 @@ void cChern::distribution(){
 	clock_t start = clock(); 
         update(recvbuf[i]);
 	clock_t end = clock(); 
-	//	if (rank==root) cout << "task " << recvbuf[i] <<"out of " << recvcount << "used " << double (end-start)/ (double) CLOCKS_PER_SEC  << endl; 
+	if (rank==root) cout << "task " << recvbuf[i] <<"out of " << recvcount << "used " << double (end-start)/ (double) CLOCKS_PER_SEC  << endl; 
         chern_rank += _chern;
       }
       cout << "rank " << rank << " has finished "<< recvcount << " tasks, " <<	" and chern_rank = " << chern_rank << endl;
@@ -121,7 +121,7 @@ void cChern::update(int nk){
     int nkx = nk % _NKX;     // --> the modulo (because nk = nkx+ nky * NKX )   
     int nky = int (nk/_NKX); // --> the floor                                   
     int lowerbound = -999; // negative flag                                     
-    double kmax = 5.0; // TODO: modify momentum space cutoff value. If this is too large, say 5.0, the diagonalization result is strongly inaccurate...       
+    double kmax = 2.0; // TODO: modify momentum space cutoff value. If this is too large, say 5.0, the diagonalization result is strongly inaccurate...       
       double kx = -kmax + nkx * kmax *2.0 /(_NKX-1);
     double ky = -kmax + nky * kmax *2.0 /(_NKX-1);
     SelfAdjointEigenSolver<MatrixXcd> ces;
