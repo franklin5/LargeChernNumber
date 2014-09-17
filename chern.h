@@ -7,6 +7,7 @@
 #ifndef EDGE_H_
 #define EDGE_H_
 #include "stdcpp.h"
+#include "lgwt.h"
 class cChern {
 private:
   int _argc;
@@ -18,25 +19,25 @@ private:
 	MatrixXcd _loopA, _loopB, _loopC, _loopD;
 	MatrixXcd _bdg_H;
 	complex<double> _chern;
+	double kmax;
+	double*gauss_kx, *gauss_w_kx, *gauss_ky, *gauss_w_ky;
 public:
 	cChern(const sPara& para, const sPhys& phys,  int argc, char** argv)
 	  :_argc(argc), _argv(argv),
 	  _Eb(para.t), _h(para.h), _v(para.v),
 	  _mu(phys.mu),_T(phys.T),
 	  // TODO: modify frequency cutoff
-	  _PMAX(80), // number of frequency cutoff for time expansion
+	  _PMAX(20), // number of frequency cutoff for time expansion
 	  pblock(2*_PMAX+1),
 	  // TODO: modify mmtn space cutoff for the bulk system
 	  pblock4(4*pblock),
-	  _MomentumSpaceCutoff(100),
+	  _MomentumSpaceCutoff(40),
 	  _NKX(2*_MomentumSpaceCutoff+1),
 	  _NKX2(_NKX*_NKX),
 	  _bdg_E(pblock4),
 	  _loopA(pblock4,pblock4),     
-	  _loopB(pblock4,pblock4),   
-	  _loopC(pblock4,pblock4),  
-	  _loopD(pblock4,pblock4),
-	  _bdg_H(pblock4,pblock4),_chern(1.0,0.0){}
+	  _bdg_H(pblock4,pblock4),_chern(1.0,0.0),
+	  kmax(5.0){}
 	int compute_count(int,int);
 	void distribution();
 	void construction();

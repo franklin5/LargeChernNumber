@@ -35,5 +35,5 @@ Itemp = sin(2*muInf*t).*real(Delta(start_index:end_index))...
     + cos(2*muInf*t).*imag(Delta(start_index:end_index));
 figure(idata+1)
 plot(t,Rtemp,'r',t,Itemp,'b',t,abs(Delta(start_index:end_index)),'k')
-%save('Rdata_2109.dat','Rtemp','-ascii', '-double')
-%save('Idata_2109.dat','Itemp','-ascii', '-double')
+save('Rdata_2109.dat','Rtemp','-ascii', '-double')
+save('Idata_2109.dat','Itemp','-ascii', '-double')

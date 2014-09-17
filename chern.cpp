@@ -60,7 +60,7 @@ void cChern::distribution(){
       cout << "rank " << rank << " has finished "<< recvcount << " tasks, " <<	" and chern_rank = " << chern_rank << endl;
     }
   }
-  chern_rank_real = chern_rank.real();
+  chern_rank_real = chern_rank.imag(); // curvature approach
   for(int ig = 0; ig<size; ++ig) {
     if (ig ==rank){
     cout << "rank" << ig << "has chern number"<< chern_rank << endl;
@@ -79,127 +79,110 @@ void cChern::distribution(){
 
 }
 void cChern::construction(){
-	update(-1); // arbitrary null construction.
-	cout << "construction completed" << endl;
+  update(-1); // arbitrary null construction.
+  cout << "construction completed" << endl;
+  gauss_kx = new double [_NKX];gauss_w_kx = new double [_NKX];
+  gauss_lgwt(_NKX,-kmax,kmax,gauss_kx,gauss_w_kx);
+  gauss_ky = new double [_NKX];gauss_w_ky = new double [_NKX];
+  gauss_lgwt(_NKX,-kmax,kmax,gauss_ky,gauss_w_ky);
 }
 
 void cChern::update(int nk){
   if (nk == -1) {
-	  _bdg_H.setZero(); // This is done only once.
-	  int p, q;
-	  // The off-diagonal coupling introduced from time-dependent order parameter should be computed only here.
-	  complex<double> Gamma2;
-	  double dt = 0.0005;
-	  double t = 0.0;
-	  VectorXd Delta_t(100000);
-	  Delta_t.setZero();
-	  int count = 0;
-	  while (t<_T){
-	    Delta_t(count) = 0.1-0.1*cos(2*M_PI*t/_T);
-//		test_output << reD << '\t' << imD << endl;
-	  	count++;
-		t+=dt;
-	  }
-	  for (int i = 0; i < pblock; ++i) {
-	  		p = i-_PMAX;
-	  		for (int j = 0; j < pblock; ++j) {
-	  			q = j-_PMAX;
-	  			Gamma2 = complex<double> (0.0,0.0);
-	  			t = 0.0;
-	  			for (int ig = 0; ig < count; ++ig) {
-					Gamma2 +=  abs(Delta_t(ig)) *
-							complex<double> (cos(2*M_PI*(q-p)*t/_T),-sin(2*M_PI*(q-p)*t/_T));
-					t += dt;
-				}
-	  			Gamma2 = Gamma2/_T*dt;
-//	  			cout << Gamma2 << endl;
-	  			_bdg_H(i+2*pblock,j+pblock) = Gamma2;
-	  			_bdg_H(i+3*pblock,j) = -Gamma2;
-	  		}
-	  }
+    _bdg_H.setZero(); // This is done only once.
+    int p, q;
+    // The off-diagonal coupling introduced from time-dependent order parameter should be computed only here.
+    complex<double> Gamma2;
+    FILE *sf_inputR, *sf_inputI;
+    // TODO: modify input file name   
+    sf_inputR = fopen ("Rdata_2109.dat","r"); 
+    sf_inputI = fopen ("Idata_2109.dat","r");
+    assert (sf_inputR != NULL);
+    assert (sf_inputI != NULL);
+    double dt = 0.0005;
+    double t = 0.0;
+    VectorXcd Delta_t(100000);
+    Delta_t.setZero();
+    int count = 0;
+    double reD, imD;
+    while (fscanf(sf_inputR, "%lf", &reD) != EOF && fscanf(sf_inputI, "%lf", &imD) != EOF ){
+      Delta_t(count) = complex<double>(reD,imD);
+      count++;
+    }
+    fclose (sf_inputR);
+    fclose (sf_inputI);
+    for (int i = 0; i < pblock; ++i) {
+      p = i-_PMAX;
+      for (int j = 0; j < pblock; ++j) {
+	q = j-_PMAX;
+	Gamma2 = complex<double> (0.0,0.0);
+	t = 0.0;
+	for (int ig = 0; ig < count; ++ig) {
+	  Gamma2 +=  abs(Delta_t(ig)) *
+	    complex<double> (cos(2*M_PI*(q-p)*t/_T),-sin(2*M_PI*(q-p)*t/_T));
+	  t += dt;
+	}
+	Gamma2 = Gamma2/_T*dt;
+	_bdg_H(i+2*pblock,j+pblock) = Gamma2;
+	_bdg_H(i+3*pblock,j) = -Gamma2;
+      }
+    }
   } else {
     int nkx = nk % _NKX;     // --> the modulo (because nk = nkx+ nky * NKX )   
     int nky = int (nk/_NKX); // --> the floor                                   
     int lowerbound = -999; // negative flag                                     
-    double kmax = 5.0; // TODO: modify momentum space cutoff value. If this is too large, say 5.0, the diagonalization result is strongly inaccurate...       
-      double kx = -kmax + nkx * kmax *2.0 /(_NKX-1);
-    double ky = -kmax + nky * kmax *2.0 /(_NKX-1);
+    //    double kmax = 2.0; // TODO: modify momentum space cutoff value. If this is too large, say 5.0, the diagonalization result is strongly inaccurate...       
+    //    double kx = -kmax + nkx * kmax *2.0 /(_NKX-1);
+    //    double ky = -kmax + nky * kmax *2.0 /(_NKX-1);
+    double kx = gauss_kx[nkx];
+    double ky = gauss_ky[nky];
     SelfAdjointEigenSolver<MatrixXcd> ces;
     double dk = 0.5 * kmax * 2.0 /(_NKX-1);
-    double qx, qy;
-    VectorXd tempEig(pblock4);
-    for (int i = 1; i < 5; ++i) {
-      switch (i) {
-      case 1:
-        qx = kx - dk;
-        qy = ky - dk;
-        update_kxky(qx,qy);
-        ces.compute(_bdg_H);
-        _loopA = ces.eigenvectors();
-        //      cout << "_loopA is finished." << endl;                          
-        for(int ip = 0; ip < 2*pblock;++ip){
-          if (ces.eigenvalues()[ip]/(M_PI/_T) > -1.001) {
-            // Questionable threshold definition                                
-            lowerbound = ip;
-            break;
-          }
-        }
-        break;
-      case 2:
-        qx = kx + dk;
-        qy = ky - dk;
-        update_kxky(qx,qy);
-        ces.compute(_bdg_H);
-        _loopB = ces.eigenvectors();
-        //      cout << "_loopB is finished." << endl;                          
-        break;
-      case 3:
-	qx = kx + dk;
-        qy = ky + dk;
-        update_kxky(qx,qy);
-        ces.compute(_bdg_H);
-        _loopC = ces.eigenvectors();
-        //      cout << "_loopC is finished." << endl;                          
-        break;
-      case 4:
-        qx = kx - dk;
-        qy = ky + dk;
-        update_kxky(qx,qy);
-        ces.compute(_bdg_H);
-        _loopD = ces.eigenvectors();
-        //      cout << "_loopD is finished." << endl;                          
-        break;
-      default:
-        break;
-      }
-      if (lowerbound > 0 && lowerbound < 2*pblock){
-        continue;
-      } else {
-        _chern = complex<double> (0.0,0.0); // no contribution needs to be adde      
+    complex<double> u,a,b,v,up,ap,bp,vp, Theta1,Theta2, temp;
+    complex<double> myI (0.0,1.0);
+    update_kxky(kx,ky);
+    ces.compute(_bdg_H);
+    _loopA = ces.eigenvectors();
+    for(int ip = 0; ip < 2*pblock;++ip){
+      if (ces.eigenvalues()[ip]/(M_PI/_T) > -1) {
+	lowerbound = ip;
 	break;
       }
     }
-    if (lowerbound > 0 && lowerbound < 2*pblock){
-      //      cout << "lower bound = " << lowerbound << " upper bound = " << 2*pblock <<endl;
- 
-  _chern = complex<double> (1.0,0.0);
- complex<double> temp;
+    if (lowerbound < 0 || lowerbound > 2*pblock){
+      _chern = complex<double> (0.0,0.0); // no contribution needs to be added
+      cout << "no contribution is added" << endl;
+    } else {
+      cout  <<"lower bound = " << lowerbound << " upper bound = " << 2*pblock <<endl;
+      _chern = complex<double> (0.0,0.0);
+      Theta1 = complex<double> (0.0,0.0);
+      Theta2 = complex<double> (0.0,0.0);
+      temp = complex<double> (0.0,0.0);
  for(int ip = lowerbound; ip < 2*pblock; ++ip) {
-   temp = _loopA.col(ip).adjoint() * _loopB.col(ip);
-   _chern = _chern * temp/abs(temp);
-   temp = _loopB.col(ip).adjoint() * _loopC.col(ip);
-   _chern = _chern * temp/abs(temp);
-   temp = _loopC.col(ip).adjoint() * _loopD.col(ip);
-   _chern = _chern * temp/abs(temp);
-   temp = _loopD.col(ip).adjoint() * _loopA.col(ip);
-   _chern = _chern * temp/abs(temp);
+   for(int iq = lowerbound;iq<2*pblock;++iq){
+     if (iq != ip){
+       //       cout << "ip=" << ip << "iq" << iq << endl;
+       for(int i = 0;i<pblock;++i){
+	 u = _loopA(i*4,ip);
+	 a = _loopA(i*4+1,ip);
+	 b = _loopA(i*4+2,ip);
+ 	 v = _loopA(i*4+3,ip);
+	 up = _loopA(i*4,iq);
+	 ap = _loopA(i*4+1,iq);
+	 bp = _loopA(i*4+2,iq);
+ 	 vp = _loopA(i*4+3,iq);
+	 Theta1 += 2*kx*up*conj(u)+_v*ap*conj(u)+_v*up*conj(a)+2*kx*ap*conj(a)-2*kx*bp*conj(b)+_v*vp*conj(b)+_v*bp*conj(v)-2*kx*vp*conj(v);
+	 Theta2 += 2*ky*conj(up)*u-myI*_v*conj(up)*a+myI*_v*conj(ap)*u+2*ky*conj(ap)*a-2*ky*conj(bp)*b+myI*_v*conj(bp)*v-myI*_v*conj(vp)*b-2*ky*conj(vp)*v;
+	 }
+       temp = 1.0/(pow(ces.eigenvalues()[ip]-ces.eigenvalues()[iq],2.0)+myI*1e-9);
+       _chern += Theta1*Theta2*temp.real();
+     }
+   }
  }
- _chern = complex<double>(log(std::abs(_chern)),atan(_chern.imag()/_chern.real()));
- _chern = _chern/2/M_PI/complex<double>(0.0,1.0);
+     _chern = -2.0*_chern/2/M_PI*gauss_w_ky[nky]* gauss_w_kx[nkx];
     }
   }
 }
-
 void cChern::update_kxky(double kx, double ky){
 	double xi = kx*kx + ky*ky - _mu;
 	int p;
