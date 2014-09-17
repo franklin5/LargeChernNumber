@@ -54,7 +54,7 @@ void cChern::distribution(){
 	clock_t start = clock(); 
         update(recvbuf[i]);
 	clock_t end = clock(); 
-	//	if (rank==root) cout << "task " << recvbuf[i] <<"out of " << recvcount << "used " << double (end-start)/ (double) CLOCKS_PER_SEC  << endl; 
+	if (rank==root) cout << "task " << recvbuf[i] <<"out of " << recvcount << "used " << double (end-start)/ (double) CLOCKS_PER_SEC  << endl; 
         chern_rank += _chern;
       }
       cout << "rank " << rank << " has finished "<< recvcount << " tasks, " <<	" and chern_rank = " << chern_rank << endl;
@@ -151,9 +151,9 @@ void cChern::update(int nk){
     }
     if (lowerbound < 0 || lowerbound > 2*pblock){
       _chern = complex<double> (0.0,0.0); // no contribution needs to be added
-      cout << "no contribution is added" << endl;
+      //      cout << "no contribution is added" << endl;
     } else {
-      cout  <<"lower bound = " << lowerbound << " upper bound = " << 2*pblock <<endl;
+      //cout  <<"lower bound = " << lowerbound << " upper bound = " << 2*pblock <<endl;
       _chern = complex<double> (0.0,0.0);
       Theta1 = complex<double> (0.0,0.0);
       Theta2 = complex<double> (0.0,0.0);
