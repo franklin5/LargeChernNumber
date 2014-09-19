@@ -84,7 +84,7 @@ void cChern::distribution(){
   if (rank == root) {
     int itemp;
     ofstream bdg_output;
-    bdg_output.open("spectrum_2109.OUT"); // TODO: modify output file name
+    bdg_output.open("spectrum_2112.OUT"); 
     assert(bdg_output.is_open());
     for(int i =0;i<size;++i){    
       itemp = compute_count(i,size);
@@ -130,8 +130,8 @@ void cChern::update(int nk){
 	  // The off-diagonal coupling introduced from time-dependent order parameter should be computed only here.
 	  complex<double> Gamma2;
 	  FILE *sf_inputR, *sf_inputI;
-	  sf_inputR = fopen ("Rdata_2109.dat","r"); // TODO: modify input file name
-	  sf_inputI = fopen ("Idata_2109.dat","r");
+	  sf_inputR = fopen ("Rdata_2112.dat","r");
+	  sf_inputI = fopen ("Idata_2112.dat","r");
 	  assert (sf_inputR != NULL);
 	  assert (sf_inputI != NULL);
 	  double dt = 0.0005;

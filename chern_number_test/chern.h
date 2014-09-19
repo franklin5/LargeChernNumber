@@ -38,5 +38,6 @@ public:
 	void construction();
 	void update(int);
 	void update_kxky(double, double);
+	double gap();
 };
 #endif /* EDGE_H_ */

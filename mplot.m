@@ -1,7 +1,7 @@
 clear
 clc
 clf
-EK = load('spectrum_2109.OUT');
+EK = load('spectrum_2112.OUT');
 NKX = sqrt(length(EK(:,1)));
 kmax = 2;
 NK = (NKX-1)/2;
@@ -14,7 +14,7 @@ for nk = 0:NKX*NKX-1
     nky = floor(nk/NKX);
     energy(nkx+1,nky+1,:) = EK(nk+1,:);
 end
-Tperiod = 26.24;
+Tperiod = 39;
 figure(1)
 for np = 1:cutoffP
     temp(:,:) = energy(:,:,np)/(pi/Tperiod);
@@ -27,6 +27,6 @@ ylabel('k_y/k_F')
 zlabel('E(k_x,k_y)/(pi/T)')
 title('hi=2.1,hf=0.9')
 view(3)
-axis([-kmax kmax -kmax kmax -5 5])
+axis([-kmax kmax -kmax kmax -1 1])
 view([0 0])
 %axis auto
