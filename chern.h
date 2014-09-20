@@ -16,11 +16,10 @@ private:
 	double _mu, _T;
 	int _PMAX, pblock,pblock4, _MomentumSpaceCutoff, _NKX, _NKX2;
 	VectorXd _bdg_E;
-	MatrixXcd _loopA, _loopB, _loopC, _loopD;
-	MatrixXcd _bdg_H;
+	MatrixXcd _bdg_V,_bdg_H;
 	complex<double> _chern;
 	double kmax;
-	double*gauss_kx, *gauss_w_kx, *gauss_ky, *gauss_w_ky;
+	double* gauss_k, *gauss_w_k;
 public:
 	cChern(const sPara& para, const sPhys& phys,  int argc, char** argv)
 	  :_argc(argc), _argv(argv),
@@ -31,13 +30,15 @@ public:
 	  pblock(2*_PMAX+1),
 	  // TODO: modify mmtn space cutoff for the bulk system
 	  pblock4(4*pblock),
-	  _MomentumSpaceCutoff(20),
-	  _NKX(2*_MomentumSpaceCutoff+1),
+	  _NKX(100),
 	  _NKX2(_NKX*_NKX),
 	  _bdg_E(pblock4),
-	  _loopA(pblock4,pblock4),     
+	  _bdg_V(pblock4,pblock4),
 	  _bdg_H(pblock4,pblock4),_chern(1.0,0.0),
 	  kmax(5.0){}
+	  ~cChern(){
+	    delete []gauss_k;
+	    delete []gauss_w_k;}
 	int compute_count(int,int);
 	void distribution();
 	void construction();
