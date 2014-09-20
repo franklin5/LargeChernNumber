@@ -22,9 +22,9 @@ void cChern::distribution(){
   int rank, size, recvcount, sendcount, stride;
   int *sendbuf, *recvbuf;
   int *sendcounts, *displs, *recvcounts, *displs_r;
-  double  *localEig, *TotalEig;
   complex<double> chern_rank;
   double chern_rank_real, total_chern;
+  double *curvature_rank, *curvature;
   const int root = 0;
   int offset;
   Init(_argc, _argv);
@@ -50,12 +50,14 @@ void cChern::distribution(){
     if (ig ==rank){
       chern_rank = complex<double> (0.0,0.0);
       cout << "rank" << ig << "has started"<< endl;
+      curvature_rank = new double[recvcount];
       for (int i=0; i<recvcount; ++i) {
 	clock_t start = clock(); 
         update(recvbuf[i]);
 	clock_t end = clock(); 
 	if (rank==root) cout << "task " << recvbuf[i] <<"out of " << recvcount << "used " << double (end-start)/ (double) CLOCKS_PER_SEC  << endl; 
         chern_rank += _chern;
+	curvature_rank[i] = _temp_curv;
       }
       cout << "rank " << rank << " has finished "<< recvcount << " tasks, " <<	" and chern_rank = " << chern_rank << endl;
     }
@@ -70,11 +72,47 @@ void cChern::distribution(){
   MPI_Reduce(&chern_rank_real, &total_chern, 1, MPI_DOUBLE, MPI_SUM, root, MPI_COMM_WORLD);
   if (root==rank) {
     cout << "Total Chern Number is: " << total_chern << endl;
+    curvature = new double [_NKX2];
+    recvcounts = new int[size];
+    displs_r = new int[size];
+    offset = 0;
+    for(int ig = 0;ig<size;++ig){
+      recvcounts[ig] = compute_count(ig,size);
+      displs_r[ig] = offset;
+      offset += recvcounts[ig];
+    }
+  }
+  MPI_Gatherv(curvature_rank,recvcount,MPI_DOUBLE,curvature,recvcounts,displs_r,MPI_DOUBLE,root,COMM_WORLD);
+  if (root==rank) {
+    ofstream curv_output, akx, aky;
+    curv_output.open("curvature.OUT");
+    akx.open("AKX.OUT");
+    aky.open("AKY.OUT");
+    assert(curv_output.is_open());
+    assert(akx.is_open());
+    assert(aky.is_open());
+    for(int nky = 0;nky <_NKX;++nky){
+      for(int nkx = 0;nkx<_NKX;++nkx){
+	curv_output << curvature[nkx+nky*_NKX] << '\t';
+	akx << gauss_k[nkx] << '\t';
+	aky << gauss_k[nky] << '\t';
+      }
+      curv_output << endl;
+      akx << endl;
+      aky << endl;
+    }
+    curv_output.close();
+    akx.close();
+    aky.close();
+    delete []curvature;
     delete []sendbuf;
     delete []sendcounts;
     delete []displs;
+    delete []recvcounts;
+    delete []displs_r;
   }
   delete []recvbuf;
+  delete []curvature_rank;
   Finalize();
 }
 void cChern::construction(){
@@ -156,6 +194,7 @@ void cChern::update(int nk){
       }
     }
     if (lowerbound < 0 || upperbound < 0){
+      _temp_curv = 0.0;
       _chern = complex<double> (0.0,0.0); 
       //      cout << "no contribution is added" << endl;
     } else {
@@ -186,6 +225,7 @@ void cChern::update(int nk){
 	    _chern += Theta1*Theta2/pow(_bdg_E[ih]-_bdg_E[ip],2.0);
 	  }
       }
+      _temp_curv = _chern.imag();
       _chern = -2.0*_chern*gauss_w_k[nkx]*gauss_w_k[nky]/(2.0*M_PI);
     }
   }

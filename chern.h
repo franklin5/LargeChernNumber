@@ -15,6 +15,7 @@ private:
 	double _Eb, _h, _v;
 	double _mu, _T;
 	int _PMAX, pblock,pblock4, _MomentumSpaceCutoff, _NKX, _NKX2;
+	double _temp_curv;
 	VectorXd _bdg_E;
 	MatrixXcd _bdg_V,_bdg_H;
 	complex<double> _chern;
@@ -30,8 +31,9 @@ public:
 	  pblock(2*_PMAX+1),
 	  // TODO: modify mmtn space cutoff for the bulk system
 	  pblock4(4*pblock),
-	  _NKX(100),
+	  _NKX(50),
 	  _NKX2(_NKX*_NKX),
+	  _temp_curv(0.0),
 	  _bdg_E(pblock4),
 	  _bdg_V(pblock4,pblock4),
 	  _bdg_H(pblock4,pblock4),_chern(1.0,0.0),
