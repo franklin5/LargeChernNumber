@@ -10,9 +10,9 @@ int cChern::compute_count(int rank, int size){
   // compute distribution count: the last rank does the remaineder job while the rest do the most even work.                                            
   int result;
   if (rank != size-1) {
-    result = int(_NKX2/size);
+    result = int(_NKX/size);
   } else {
-    result = int(_NKX2/size) + _NKX2 % size;
+    result = int(_NKX/size) + _NKX % size;
  }
   return result;
 }
@@ -31,15 +31,15 @@ void cChern::distribution(){
   rank = COMM_WORLD.Get_rank();
   size = COMM_WORLD.Get_size();
   if (rank == root){ // send process is only root significant                   
-    sendbuf = new int[_NKX2];
-    for(int i = 0; i< _NKX2; ++i){
+    sendbuf = new int[_NKX];
+    for(int i = 0; i< _NKX; ++i){
       sendbuf[i] = i;
     }
     sendcounts = new int[size];
     displs = new int[size];
     for(int i=0; i<size; i++){
       sendcounts[i] = compute_count(i,size);
-      displs[i] = i*int(_NKX2/size);
+      displs[i] = i*int(_NKX/size);
     }
   }
   recvcount = compute_count(rank,size); // This is a rank dependent variable.   
@@ -72,7 +72,7 @@ void cChern::distribution(){
   MPI_Reduce(&chern_rank_real, &total_chern, 1, MPI_DOUBLE, MPI_SUM, root, MPI_COMM_WORLD);
   if (root==rank) {
     cout << "Total Chern Number is: " << total_chern << endl;
-    curvature = new double [_NKX2];
+    curvature = new double [_NKX];
     recvcounts = new int[size];
     displs_r = new int[size];
     offset = 0;
@@ -84,26 +84,13 @@ void cChern::distribution(){
   }
   MPI_Gatherv(curvature_rank,recvcount,MPI_DOUBLE,curvature,recvcounts,displs_r,MPI_DOUBLE,root,COMM_WORLD);
   if (root==rank) {
-    ofstream curv_output, akx, aky;
-    curv_output.open("curvature.OUT");
-    akx.open("AKX.OUT");
-    aky.open("AKY.OUT");
+    ofstream curv_output, ak;
+    curv_output.open("curvature_rot.OUT");
     assert(curv_output.is_open());
-    assert(akx.is_open());
-    assert(aky.is_open());
-    for(int nky = 0;nky <_NKX;++nky){
-      for(int nkx = 0;nkx<_NKX;++nkx){
-	curv_output << curvature[nkx+nky*_NKX] << '\t';
-	akx << gauss_k[nkx] << '\t';
-	aky << gauss_k[nky] << '\t';
-      }
-      curv_output << endl;
-      akx << endl;
-      aky << endl;
+    for(int nk = 0;nk <_NKX;++nk){
+      curv_output << gauss_k[nk] << '\t' << curvature[nk] << endl;
     }
     curv_output.close();
-    akx.close();
-    aky.close();
     delete []curvature;
     delete []sendbuf;
     delete []sendcounts;
@@ -120,7 +107,7 @@ void cChern::construction(){
   cout << "construction completed" << endl;
   gauss_k = new double [_NKX];
   gauss_w_k = new double [_NKX];
-  gauss_lgwt(_NKX,-kmax,kmax,gauss_k,gauss_w_k);
+  gauss_lgwt(_NKX,0.0,kmax,gauss_k,gauss_w_k);
 }
 
 void cChern::update(int nk){
@@ -168,12 +155,10 @@ void cChern::update(int nk){
       }
     }
   } else {
-    int nkx = nk % _NKX;     // --> the modulo (because nk = nkx+ nky * NKX )   
-    int nky = int (nk/_NKX); // --> the floor                                   
     int lowerbound = -999; // ridiculous negative flag                                     
     int upperbound = -999; // ridiculous negative flag                                     
-    double kx = gauss_k[nkx];
-    double ky = gauss_k[nky];
+    double kx = gauss_k[nk];
+    double ky = kx;
     SelfAdjointEigenSolver<MatrixXcd> ces;
     complex<double> u,a,b,v,up,ap,bp,vp, Theta1,Theta2, temp;
     complex<double> myI (0.0,1.0);
@@ -226,7 +211,7 @@ void cChern::update(int nk){
 	  }
       }
       _temp_curv = _chern.imag();
-      _chern = -2.0*_chern*gauss_w_k[nkx]*gauss_w_k[nky]/(2.0*M_PI);
+      _chern = -2.0*_chern*kx*gauss_w_k[nk];
     }
   }
 }
