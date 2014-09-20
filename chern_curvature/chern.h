@@ -13,7 +13,7 @@ private:
   char** _argv;
   double _Eb, _h, _v;
   double _mu, _T;
-  int _PMAX, pblock,pblock4, _MomentumSpaceCutoff, _NKX, _NKX2;
+  int _PMAX, pblock,pblock4, _MomentumSpaceCutoff, _NKX;
   VectorXd _bdg_E;
   MatrixXcd _bdg_V;
   MatrixXcd _bdg_H;
@@ -30,12 +30,11 @@ public:
     pblock(4),
     // TODO: modify mmtn space cutoff for the bulk system
     pblock4(4),
-    _NKX(5000),
-    _NKX2(_NKX*_NKX),
+    _NKX(200),
     _bdg_E(pblock4),
     _bdg_V(pblock4,pblock4),
     _bdg_H(pblock4,pblock4),_chern(1.0,0.0),
-    kmax(10.0){}
+    kmax(5.0){}
     ~cChern(){
       delete []gauss_k;
       delete []gauss_w_k;}

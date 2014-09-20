@@ -10,9 +10,9 @@ int cChern::compute_count(int rank, int size){
   // compute distribution count: the last rank does the remaineder job while the rest do the most even work.                                            
   int result;
   if (rank != size-1) {
-    result = int(_NKX2/size);
+    result = int(_NKX/size);
   } else {
-    result = int(_NKX2/size) + _NKX2 % size;
+    result = int(_NKX/size) + _NKX % size;
  }
   return result;
 }
@@ -31,15 +31,15 @@ void cChern::distribution(){
   rank = COMM_WORLD.Get_rank();
   size = COMM_WORLD.Get_size();
   if (rank == root){ // send process is only root significant                   
-    sendbuf = new int[_NKX2];
-    for(int i = 0; i< _NKX2; ++i){
+    sendbuf = new int[_NKX];
+    for(int i = 0; i< _NKX; ++i){
       sendbuf[i] = i;
     }
     sendcounts = new int[size];
     displs = new int[size];
     for(int i=0; i<size; i++){
       sendcounts[i] = compute_count(i,size);
-      displs[i] = i*int(_NKX2/size);
+      displs[i] = i*int(_NKX/size);
     }
   }
   recvcount = compute_count(rank,size); // This is a rank dependent variable.   
@@ -73,7 +73,7 @@ void cChern::construction(){
   update(-1); // arbitrary null construction.
   gauss_k = new double [_NKX];
   gauss_w_k = new double [_NKX];
-  gauss_lgwt(_NKX,-kmax,kmax,gauss_k,gauss_w_k);
+  gauss_lgwt(_NKX,0.0,kmax,gauss_k,gauss_w_k);
 }
 
 void cChern::update(int nk){
@@ -83,16 +83,17 @@ void cChern::update(int nk){
     _bdg_H(3,0) = -1.0;
 
   } else {
-    int nkx = nk % _NKX;     // --> the modulo (because nk = nkx+ nky * NKX )
-    int nky = int (nk/_NKX); // --> the floor
+    //    int nkx = nk % _NKX;     // --> the modulo (because nk = nkx+ nky * NKX )
+    //    int nky = int (nk/_NKX); // --> the floor
     //    double kx = -kmax + nkx * kmax *2.0 /(_NKX-1);
     //    double ky = -kmax + nky * kmax *2.0 /(_NKX-1);
-    double kx = gauss_k[nkx];
-    double ky = gauss_k[nky];
+    //    double kx = gauss_k[nkx];
+    //double ky = gauss_k[nky];
+    double k = gauss_k[nk];
     SelfAdjointEigenSolver<MatrixXcd> ces;
     complex<double> myI(0.0,1.0);
     //    double dk = 0.5 * kmax * 2.0 /(_NKX-1);
-    update_kxky(kx,ky);
+    update_kxky(k,k);
     ces.compute(_bdg_H); 
     _bdg_E = ces.eigenvalues();
     _bdg_V = ces.eigenvectors();
@@ -111,12 +112,12 @@ void cChern::update(int nk){
 	ap = _bdg_V(i*4+1,ip);
 	bp = _bdg_V(i*4+2,ip);
 	vp = _bdg_V(i*4+3,ip);
-	Theta1 = 2*kx*up*conj(u)+_v*ap*conj(u)+_v*up*conj(a)+2*kx*ap*conj(a)-2*kx*bp*conj(b)+_v*vp*conj(b)+_v*bp*conj(v)-2*kx*vp*conj(v);
-	Theta2 = 2*ky*conj(up)*u-myI*_v*conj(up)*a+myI*_v*conj(ap)*u+2*ky*conj(ap)*a-2*ky*conj(bp)*b+myI*_v*conj(bp)*v-myI*_v*conj(vp)*b-2*ky*conj(vp)*v;
-	_chern += Theta1*Theta2/pow(_bdg_E[ih]-_bdg_E[ip],2.0);
+	Theta1 = 2*k*up*conj(u)+_v*ap*conj(u)+_v*up*conj(a)+2*k*ap*conj(a)-2*k*bp*conj(b)+_v*vp*conj(b)+_v*bp*conj(v)-2*k*vp*conj(v);
+	Theta2 = 2*k*conj(up)*u-myI*_v*conj(up)*a+myI*_v*conj(ap)*u+2*k*conj(ap)*a-2*k*conj(bp)*b+myI*_v*conj(bp)*v-myI*_v*conj(vp)*b-2*k*conj(vp)*v;
+	_chern += Theta1*Theta2/pow(_bdg_E[ih]-_bdg_E[ip],2.0)*2; // mystery factor of 2 comes from dimension reduction.
       }
     }
-    _chern = -2.0*_chern*gauss_w_k[nkx]*gauss_w_k[nky]/(2.0*M_PI);
+    _chern = -2.0*_chern*k*gauss_w_k[nk]; 
   }
 }    
 
