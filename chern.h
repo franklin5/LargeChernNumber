@@ -27,11 +27,11 @@ public:
 	  _Eb(para.t), _h(para.h), _v(para.v),
 	  _mu(phys.mu),_T(phys.T),
 	  // TODO: modify frequency cutoff
-	  _PMAX(200), // number of frequency cutoff for time expansion
+	  _PMAX(150), // number of frequency cutoff for time expansion
 	  pblock(2*_PMAX+1),
 	  // TODO: modify mmtn space cutoff for the bulk system
 	  pblock4(4*pblock),
-	  _NKX(200),
+	  _NKX(20),
 	  _temp_curv(0.0),
 	  _bdg_E(pblock4),
 	  _bdg_V(pblock4,pblock4),

@@ -84,13 +84,25 @@ void cChern::distribution(){
   }
   MPI_Gatherv(curvature_rank,recvcount,MPI_DOUBLE,curvature,recvcounts,displs_r,MPI_DOUBLE,root,COMM_WORLD);
   if (root==rank) {
-    ofstream curv_output, ak;
+    ofstream curv_output;
     curv_output.open("curvature_rot.OUT");
     assert(curv_output.is_open());
     for(int nk = 0;nk <_NKX;++nk){
       curv_output << gauss_k[nk] << '\t' << curvature[nk] << endl;
     }
     curv_output.close();
+    /*    complex<double> temp ;
+    ofstream bdg;
+    bdg.open("H.OUT");
+    assert(bdg.is_open());
+    for (int ip = 0;ip<pblock4;++ip){
+      for (int iq = 0;iq<pblock4;++iq){
+	temp = 	_bdg_H(ip,iq)-conj(_bdg_H(iq,ip)) ;
+	bdg << temp.imag() << '\t';
+      }
+      bdg << endl;
+    }
+    bdg.close();*/
     delete []curvature;
     delete []sendbuf;
     delete []sendcounts;
@@ -136,14 +148,14 @@ void cChern::update(int nk){
     fclose (sf_inputI);
     for (int i = 0; i < pblock; ++i) {
       p = i-_PMAX;
-      for (int j = 0; j <= i; ++j) { // only lower left part of the matrix is needed for self-adjoint matrix storage.
+      for (int j = 0; j < pblock; ++j) { 
 	q = j-_PMAX;
 	Gamma1 = complex<double> (0.0,0.0);
 	Gamma2 = complex<double> (0.0,0.0);
 	t = 0.0;
 	for (int ig = 0; ig < count; ++ig) {
 	  Gamma1 += abs(Delta_t(ig)) * complex<double> (cos(2*M_PI*(q-p)*t/_T), sin(2*M_PI*(q-p)*t/_T));
-	  Gamma2 += abs(Delta_t(ig)) * complex<double> (cos(2*M_PI*(q-p)*t/_T),-sin(2*M_PI*(q-p)*t/_T));
+	  Gamma2 += abs(Delta_t(ig)) * complex<double> (cos(2*M_PI*(q-p)*t/_T), sin(2*M_PI*(q-p)*t/_T));
 	  t += dt;
 	}
 	Gamma1 = Gamma1/_T*dt;
@@ -157,12 +169,11 @@ void cChern::update(int nk){
   } else {
     int lowerbound = -999; // ridiculous negative flag                                     
     int upperbound = -999; // ridiculous negative flag                                     
-    double kx = gauss_k[nk];
-    double ky = kx;
+    double k = gauss_k[nk];
     SelfAdjointEigenSolver<MatrixXcd> ces;
     complex<double> u,a,b,v,up,ap,bp,vp, Theta1,Theta2, temp;
     complex<double> myI (0.0,1.0);
-    update_kxky(kx,ky);
+    update_kxky(k,k);
     ces.compute(_bdg_H);
     _bdg_E = ces.eigenvalues(); // assuming eigenvalues are sorted in ascending order, but could be wrong since Eigen library does not gurantee that... Oops... Good luck!
     _bdg_V = ces.eigenvectors();
@@ -198,20 +209,20 @@ void cChern::update(int nk){
 	      ap = _bdg_V(i*4+1,ip);
 	      bp = _bdg_V(i*4+2,ip);
 	      vp = _bdg_V(i*4+3,ip);
-	      Theta1 += 2*kx*up*conj(u)+_v*ap*conj(u)
-		+_v*up*conj(a)+2*kx*ap*conj(a)
-		-2*kx*bp*conj(b)+_v*vp*conj(b)
-		+_v*bp*conj(v)-2*kx*vp*conj(v);
-	      Theta2 += 2*ky*conj(up)*u-myI*_v*conj(up)*a
-		+myI*_v*conj(ap)*u+2*ky*conj(ap)*a
-		-2*ky*conj(bp)*b+myI*_v*conj(bp)*v
-		-myI*_v*conj(vp)*b-2*ky*conj(vp)*v;
+	      Theta1 += 2*k*up*conj(u)+_v*ap*conj(u)
+		+_v*up*conj(a)+2*k*ap*conj(a)
+		-2*k*bp*conj(b)+_v*vp*conj(b)
+		+_v*bp*conj(v)-2*k*vp*conj(v);
+	      Theta2 += 2*k*conj(up)*u-myI*_v*conj(up)*a
+		+myI*_v*conj(ap)*u+2*k*conj(ap)*a
+		-2*k*conj(bp)*b+myI*_v*conj(bp)*v
+		-myI*_v*conj(vp)*b-2*k*conj(vp)*v;
 	    }
-	    _chern += Theta1*Theta2/pow(_bdg_E[ih]-_bdg_E[ip],2.0);
+	    _chern += Theta1*Theta2/pow(_bdg_E[ih]-_bdg_E[ip],2.0)*2.0;
 	  }
       }
       _temp_curv = _chern.imag();
-      _chern = -2.0*_chern*kx*gauss_w_k[nk];
+      _chern = -2.0*_chern*k*gauss_w_k[nk];
     }
   }
 }
@@ -223,9 +234,11 @@ void cChern::update_kxky(double kx, double ky){
     p = i-_PMAX;
     // only lower left part of the matrix is needed for self-adjoint matrix storage.
     _bdg_H(i*4,i*4)     = complex<double>(xi+_h+2*M_PI*p/_T,0.0);
+    _bdg_H(i*4,i*4+1)   = complex<double>(_v*kx,-_v*ky);
     _bdg_H(i*4+1,i*4)   = complex<double>(_v*kx,_v*ky);
     _bdg_H(i*4+1,i*4+1) = complex<double>(xi-_h+2*M_PI*p/_T,0.0);
     _bdg_H(i*4+2,i*4+2) = complex<double>(-(xi+_h+2*M_PI*p/_T),0.0);
+    _bdg_H(i*4+2,i*4+3) = complex<double>(_v*kx, _v*ky);
     _bdg_H(i*4+3,i*4+2) = complex<double>(_v*kx,-_v*ky);
     _bdg_H(i*4+3,i*4+3) = complex<double>(-(xi-_h+2*M_PI*p/_T),0.0);
   }
