@@ -21,12 +21,13 @@ void cChern::distribution(){
   construction();
   int rank, size, recvcount, sendcount, stride;
   int *sendbuf, *recvbuf;
-  int *sendcounts, *displs, *recvcounts, *displs_r;
+  int *sendcounts, *displs, *recvcounts, *displs_r, *recvcountsE, *displs_rE; 
   complex<double> chern_rank;
   double chern_rank_real, total_chern;
   double *curvature_rank, *curvature;
+  double *bdgE_rank, *bdgE;
   const int root = 0;
-  int offset;
+  int offset, offsetE;
   Init(_argc, _argv);
   rank = COMM_WORLD.Get_rank();
   size = COMM_WORLD.Get_size();
@@ -51,6 +52,7 @@ void cChern::distribution(){
       chern_rank = complex<double> (0.0,0.0);
       cout << "rank" << ig << "has started"<< endl;
       curvature_rank = new double[recvcount];
+      bdgE_rank = new double[stride];
       for (int i=0; i<recvcount; ++i) {
 	clock_t start = clock(); 
         update(recvbuf[i]);
@@ -58,6 +60,9 @@ void cChern::distribution(){
 	if (rank==root) cout << "task " << recvbuf[i] <<"out of " << recvcount << "used " << double (end-start)/ (double) CLOCKS_PER_SEC  << endl; 
         chern_rank += _chern;
 	curvature_rank[i] = _temp_curv;
+	for(int ibdgE = 0;ibdgE<pblock4;++ibdgE) {
+	  bdgE_rank[i*pblock4+ibdgE] = _bdg_E(ibdgE);
+	}
       }
       cout << "rank " << rank << " has finished "<< recvcount << " tasks, " <<	" and chern_rank = " << chern_rank << endl;
     }
@@ -73,16 +78,23 @@ void cChern::distribution(){
   if (root==rank) {
     cout << "Total Chern Number is: " << total_chern << endl;
     curvature = new double [_NKX];
+    bdgE = new double [_NKX*pblock4];
     recvcounts = new int[size];
     displs_r = new int[size];
-    offset = 0;
+    recvcountsE = new int[size];
+    displs_rE = new int[size];
+    offset = 0; offsetE = 0;
     for(int ig = 0;ig<size;++ig){
       recvcounts[ig] = compute_count(ig,size);
       displs_r[ig] = offset;
       offset += recvcounts[ig];
+      recvcountsE[ig] = compute_count(ig,size)*pblock4;
+      displs_rE[ig] = offsetE;
+      offsetE += recvcountsE[ig];
     }
   }
   MPI_Gatherv(curvature_rank,recvcount,MPI_DOUBLE,curvature,recvcounts,displs_r,MPI_DOUBLE,root,COMM_WORLD);
+  MPI_Gatherv(bdgE_rank,stride,MPI_DOUBLE,bdgE,recvcountsE,displs_rE,MPI_DOUBLE,root,COMM_WORLD);
   if (root==rank) {
     ofstream curv_output;
     curv_output.open("curvature_rot.OUT");
@@ -91,6 +103,16 @@ void cChern::distribution(){
       curv_output << gauss_k[nk] << '\t' << curvature[nk] << endl;
     }
     curv_output.close();
+    ofstream bdgE_output;
+    bdgE_output.open("bdgE.OUT");
+    assert(bdgE_output.is_open());
+    for(int nk = 0;nk <_NKX;++nk){
+      for(int ibdgE=0;ibdgE<pblock4;++ibdgE){
+	bdgE_output << bdgE[nk*pblock4+ibdgE] << '\t';
+      }
+      bdgE_output << endl;
+    }
+    bdgE_output.close();
     /*    complex<double> temp ;
     ofstream bdg;
     bdg.open("H.OUT");
@@ -109,6 +131,8 @@ void cChern::distribution(){
     delete []displs;
     delete []recvcounts;
     delete []displs_r;
+    delete []recvcountsE;
+    delete []displs_rE;
   }
   delete []recvbuf;
   delete []curvature_rank;
@@ -148,7 +172,7 @@ void cChern::update(int nk){
     fclose (sf_inputI);
     for (int i = 0; i < pblock; ++i) {
       p = i-_PMAX;
-      for (int j = 0; j < pblock; ++j) { 
+      for (int j = 0; j <=i; ++j) { 
 	q = j-_PMAX;
 	Gamma1 = complex<double> (0.0,0.0);
 	Gamma2 = complex<double> (0.0,0.0);
@@ -178,13 +202,13 @@ void cChern::update(int nk){
     _bdg_E = ces.eigenvalues(); // assuming eigenvalues are sorted in ascending order, but could be wrong since Eigen library does not gurantee that... Oops... Good luck!
     _bdg_V = ces.eigenvectors();
     for(int ip = 0; ip < 2*pblock;++ip){
-      if (_bdg_E[ip]/(M_PI/_T) >= -1.0) {
+      if (_bdg_E[ip]/(M_PI/_T) >= -1.1) {
 	lowerbound = ip;
 	break;
       }
     }
     for(int ip = 2*pblock; ip < pblock4;++ip){
-      if (_bdg_E[ip]/(M_PI/_T) >= 1.0) {
+      if (_bdg_E[ip]/(M_PI/_T) >= 1.1) {
 	upperbound = ip;
 	break;
       }
