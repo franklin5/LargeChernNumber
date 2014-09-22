@@ -113,18 +113,21 @@ void cChern::distribution(){
       bdgE_output << endl;
     }
     bdgE_output.close();
-    /*    complex<double> temp ;
+/*
+    complex<double> temp ;
     ofstream bdg;
     bdg.open("H.OUT");
     assert(bdg.is_open());
     for (int ip = 0;ip<pblock4;++ip){
       for (int iq = 0;iq<pblock4;++iq){
-	temp = 	_bdg_H(ip,iq)-conj(_bdg_H(iq,ip)) ;
-	bdg << temp.imag() << '\t';
+	//	temp = 	_bdg_H(ip,iq)-conj(_bdg_H(iq,ip)) ;	
+	//bdg << temp.real() << '\t';
+	bdg << _bdg_H(ip,iq).imag() << '\t';
       }
       bdg << endl;
     }
-    bdg.close();*/
+    bdg.close();
+*/
     delete []curvature;
     delete []sendbuf;
     delete []sendcounts;
@@ -173,13 +176,16 @@ void cChern::update(int nk){
     for (int i = 0; i < pblock; ++i) {
       p = i-_PMAX;
       for (int j = 0; j <=i; ++j) { 
+      //      for (int j = 0; j < pblock; ++j) { 
 	q = j-_PMAX;
 	Gamma1 = complex<double> (0.0,0.0);
 	Gamma2 = complex<double> (0.0,0.0);
 	t = 0.0;
 	for (int ig = 0; ig < count; ++ig) {
-	  Gamma1 += abs(Delta_t(ig)) * complex<double> (cos(2*M_PI*(q-p)*t/_T), sin(2*M_PI*(q-p)*t/_T));
-	  Gamma2 += abs(Delta_t(ig)) * complex<double> (cos(2*M_PI*(q-p)*t/_T), sin(2*M_PI*(q-p)*t/_T));
+	  Gamma1 += (Delta_t(ig)) 
+* complex<double> (cos(2*M_PI*(q-p)*t/_T), sin(2*M_PI*(q-p)*t/_T));
+	  Gamma2 += conj(Delta_t(ig)) 
+* complex<double> (cos(2*M_PI*(q-p)*t/_T), sin(2*M_PI*(q-p)*t/_T));
 	  t += dt;
 	}
 	Gamma1 = Gamma1/_T*dt;
@@ -202,13 +208,13 @@ void cChern::update(int nk){
     _bdg_E = ces.eigenvalues(); // assuming eigenvalues are sorted in ascending order, but could be wrong since Eigen library does not gurantee that... Oops... Good luck!
     _bdg_V = ces.eigenvectors();
     for(int ip = 0; ip < 2*pblock;++ip){
-      if (_bdg_E[ip]/(M_PI/_T) >= -1.1) {
+      if (_bdg_E[ip]/(M_PI/_T) >= -1.0) {
 	lowerbound = ip;
 	break;
       }
     }
     for(int ip = 2*pblock; ip < pblock4;++ip){
-      if (_bdg_E[ip]/(M_PI/_T) >= 1.1) {
+      if (_bdg_E[ip]/(M_PI/_T) >= 1.0) {
 	upperbound = ip;
 	break;
       }
@@ -261,9 +267,9 @@ void cChern::update_kxky(double kx, double ky){
     _bdg_H(i*4,i*4+1)   = complex<double>(_v*kx,-_v*ky);
     _bdg_H(i*4+1,i*4)   = complex<double>(_v*kx,_v*ky);
     _bdg_H(i*4+1,i*4+1) = complex<double>(xi-_h+2*M_PI*p/_T,0.0);
-    _bdg_H(i*4+2,i*4+2) = complex<double>(-(xi+_h+2*M_PI*p/_T),0.0);
+    _bdg_H(i*4+2,i*4+2) = complex<double>(-(xi+_h-2*M_PI*p/_T),0.0);
     _bdg_H(i*4+2,i*4+3) = complex<double>(_v*kx, _v*ky);
     _bdg_H(i*4+3,i*4+2) = complex<double>(_v*kx,-_v*ky);
-    _bdg_H(i*4+3,i*4+3) = complex<double>(-(xi-_h+2*M_PI*p/_T),0.0);
+    _bdg_H(i*4+3,i*4+3) = complex<double>(-(xi-_h-2*M_PI*p/_T),0.0);
   }
 }
