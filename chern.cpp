@@ -149,10 +149,10 @@ void cChern::construction(){
 void cChern::update(int nk){
   if (nk == -1) {
     _bdg_H.setZero(); // This is done only once.
-    int p, q;
+    //int p, q;
     // The off-diagonal coupling introduced from time-dependent order parameter should be computed only here.
     complex<double> Gamma1, Gamma2;
-    FILE *sf_inputR, *sf_inputI;
+    /*FILE *sf_inputR, *sf_inputI;
     // TODO: modify input file name   
     sf_inputR = fopen ("Rdata_2109.dat","r"); 
     sf_inputI = fopen ("Idata_2109.dat","r");
@@ -169,21 +169,21 @@ void cChern::update(int nk){
       count++;
     }
     fclose (sf_inputR);
-    fclose (sf_inputI);
+    fclose (sf_inputI);*/
     for (int i = 0; i < pblock; ++i) {
-      p = i-_PMAX;
+      //p = i-_PMAX;
       for (int j = 0; j <=i; ++j) { 
-	q = j-_PMAX;
-	Gamma1 = complex<double> (0.0,0.0);
+	//q = j-_PMAX;
+	/*Gamma1 = complex<double> (0.0,0.0);
 	Gamma2 = complex<double> (0.0,0.0);
 	t = 0.0;
 	for (int ig = 0; ig < count; ++ig) {
 	  Gamma1 += abs(Delta_t(ig)) * complex<double> (cos(2*M_PI*(q-p)*t/_T), sin(2*M_PI*(q-p)*t/_T));
 	  Gamma2 += abs(Delta_t(ig)) * complex<double> (cos(2*M_PI*(q-p)*t/_T), sin(2*M_PI*(q-p)*t/_T));
 	  t += dt;
-	}
-	Gamma1 = Gamma1/_T*dt;
-	Gamma2 = Gamma2/_T*dt;
+	  }*/
+	Gamma1 = complex<double> (1.0,0.0);
+	Gamma2 = complex<double> (1.0,0.0);
 	_bdg_H(i*4,  j*4+3) = -Gamma1;
 	_bdg_H(i*4+1,j*4+2) =  Gamma1;
 	_bdg_H(i*4+2,j*4+1) =  Gamma2;
@@ -191,8 +191,8 @@ void cChern::update(int nk){
       }
     }
   } else {
-    int lowerbound = -999; // ridiculous negative flag                                     
-    int upperbound = -999; // ridiculous negative flag                                     
+    int lowerbound = 0;
+    int upperbound = 3;
     double k = gauss_k[nk];
     SelfAdjointEigenSolver<MatrixXcd> ces;
     complex<double> u,a,b,v,up,ap,bp,vp, Theta1,Theta2, temp;
@@ -201,7 +201,7 @@ void cChern::update(int nk){
     ces.compute(_bdg_H);
     _bdg_E = ces.eigenvalues(); // assuming eigenvalues are sorted in ascending order, but could be wrong since Eigen library does not gurantee that... Oops... Good luck!
     _bdg_V = ces.eigenvectors();
-    for(int ip = 0; ip < 2*pblock;++ip){
+    /*for(int ip = 0; ip < 2*pblock;++ip){
       if (_bdg_E[ip]/(M_PI/_T) >= -1.1) {
 	lowerbound = ip;
 	break;
@@ -212,7 +212,7 @@ void cChern::update(int nk){
 	upperbound = ip;
 	break;
       }
-    }
+      }*/
     if (lowerbound < 0 || upperbound < 0){
       _temp_curv = 0.0;
       _chern = complex<double> (0.0,0.0); 

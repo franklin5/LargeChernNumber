@@ -12,7 +12,7 @@ int main(int argc, char** argv){
 	double  muInf, Tperiod, hf;
 	// TODO: modify dataset
 	// dataset: (hi, hf) = (2.1, 0.9)
-	hf = 0.9;
+	hf = 1.05;
 	muInf = 0.119725329786196;
 	Tperiod = 26.239999999999998;
 	sPara para; para.t = 0.2; para.h = hf;para.v = 1.2;
