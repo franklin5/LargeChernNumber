@@ -18,7 +18,6 @@ int cChern::compute_count(int rank, int size){
 }
 
 void cChern::distribution(){
-  construction();
   int rank, size, recvcount, sendcount, stride;
   int *sendbuf, *recvbuf;
   int *sendcounts, *displs, *recvcounts, *displs_r, *recvcountsE, *displs_rE; 
@@ -113,8 +112,8 @@ void cChern::distribution(){
       bdgE_output << endl;
     }
     bdgE_output.close();
-/*
-    complex<double> temp ;
+    /*
+    //    complex<double> temp ;
     ofstream bdg;
     bdg.open("H.OUT");
     assert(bdg.is_open());
@@ -123,11 +122,12 @@ void cChern::distribution(){
 	//	temp = 	_bdg_H(ip,iq)-conj(_bdg_H(iq,ip)) ;	
 	//bdg << temp.real() << '\t';
 	bdg << _bdg_H(ip,iq).imag() << '\t';
+	//	bdg << _bdg_H(ip,iq).real() << '\t';
       }
       bdg << endl;
     }
     bdg.close();
-*/
+    */
     delete []curvature;
     delete []sendbuf;
     delete []sendcounts;
@@ -142,8 +142,10 @@ void cChern::distribution(){
   Finalize();
 }
 void cChern::construction(){
-  update(-1); // arbitrary null construction.
-  cout << "construction completed" << endl;
+  clock_t start = clock();
+ update(-1); // arbitrary null construction. 
+  clock_t end = clock();
+  cout << "construction completed using " << double (end-start)/ (double) CLOCKS_PER_SEC << endl;
   gauss_k = new double [_NKX];
   gauss_w_k = new double [_NKX];
   gauss_lgwt(_NKX,0.0,kmax,gauss_k,gauss_w_k);
@@ -176,37 +178,40 @@ void cChern::update(int nk){
     for (int i = 0; i < pblock; ++i) {
       p = i-_PMAX;
       for (int j = 0; j <=i; ++j) { 
+	//      for (int j = 0; j < pblock; ++j) { 
       //      for (int j = 0; j < pblock; ++j) { 
 	q = j-_PMAX;
 	Gamma1 = complex<double> (0.0,0.0);
 	Gamma2 = complex<double> (0.0,0.0);
 	t = 0.0;
 	for (int ig = 0; ig < count; ++ig) {
-	  Gamma1 += (Delta_t(ig)) 
-* complex<double> (cos(2*M_PI*(q-p)*t/_T), sin(2*M_PI*(q-p)*t/_T));
-	  Gamma2 += conj(Delta_t(ig)) 
-* complex<double> (cos(2*M_PI*(q-p)*t/_T), sin(2*M_PI*(q-p)*t/_T));
+	  Gamma1 += abs(Delta_t(ig)) 
+	    * complex<double> (cos(2*M_PI*(q-p)*t/_T), sin(2*M_PI*(q-p)*t/_T));
+	  Gamma2 += abs(Delta_t(ig)) 
+	    * complex<double> (cos(2*M_PI*(q-p)*t/_T), sin(2*M_PI*(q-p)*t/_T));
 	  t += dt;
 	}
 	Gamma1 = Gamma1/_T*dt;
 	Gamma2 = Gamma2/_T*dt;
-	_bdg_H(i*4,  j*4+3) = -Gamma1;
+      	_bdg_H(i*4,  j*4+3) = -Gamma1;
 	_bdg_H(i*4+1,j*4+2) =  Gamma1;
 	_bdg_H(i*4+2,j*4+1) =  Gamma2;
 	_bdg_H(i*4+3,j*4)   = -Gamma2;
       }
     }
   } else {
-    int lowerbound = -999; // ridiculous negative flag                                     
-    int upperbound = -999; // ridiculous negative flag                                     
+    int lowerbound = -999; // ridiculous negative flag                         
+    int upperbound = -999; // ridiculous negative flag                        
     double k = gauss_k[nk];
     SelfAdjointEigenSolver<MatrixXcd> ces;
     complex<double> u,a,b,v,up,ap,bp,vp, Theta1,Theta2, temp;
     complex<double> myI (0.0,1.0);
     update_kxky(k,k);
     ces.compute(_bdg_H);
-    _bdg_E = ces.eigenvalues(); // assuming eigenvalues are sorted in ascending order, but could be wrong since Eigen library does not gurantee that... Oops... Good luck!
+    _bdg_E = ces.eigenvalues(); 
+// assuming eigenvalues are sorted in ascending order, but could be wrong since Eigen library does not gurantee that... Oops... Good luck!
     _bdg_V = ces.eigenvectors();
+    
     for(int ip = 0; ip < 2*pblock;++ip){
       if (_bdg_E[ip]/(M_PI/_T) >= -1.0) {
 	lowerbound = ip;
@@ -219,6 +224,9 @@ void cChern::update(int nk){
 	break;
       }
     }
+    
+    //    lowerbound = 0;
+    //    upperbound = pblock4-1;
     if (lowerbound < 0 || upperbound < 0){
       _temp_curv = 0.0;
       _chern = complex<double> (0.0,0.0); 
@@ -226,33 +234,33 @@ void cChern::update(int nk){
     } else {
       // cout  <<"lower bound = " << lowerbound << " upper bound = " << upperbound << ", and " << upperbound-lowerbound << " is considered for computation." <<endl;
       _chern = complex<double> (0.0,0.0);
-      for(int ih = lowerbound; ih < 2*pblock; ++ih) { // hole branch contribution 
-	  for(int ip = 2*pblock;ip<=upperbound;++ip){ // particle branch contribution
-	    Theta1 = complex<double> (0.0,0.0);
-	    Theta2 = complex<double> (0.0,0.0);
-	    for(int i = 0; i < pblock; ++i){ // frequency block adds up
-	      u = _bdg_V(i*4,ih);
-	      a = _bdg_V(i*4+1,ih);
-	      b = _bdg_V(i*4+2,ih);
-	      v = _bdg_V(i*4+3,ih);	    
-	      up = _bdg_V(i*4,ip);
-	      ap = _bdg_V(i*4+1,ip);
-	      bp = _bdg_V(i*4+2,ip);
-	      vp = _bdg_V(i*4+3,ip);
-	      Theta1 += 2*k*up*conj(u)+_v*ap*conj(u)
-		+_v*up*conj(a)+2*k*ap*conj(a)
-		-2*k*bp*conj(b)+_v*vp*conj(b)
-		+_v*bp*conj(v)-2*k*vp*conj(v);
-	      Theta2 += 2*k*conj(up)*u-myI*_v*conj(up)*a
-		+myI*_v*conj(ap)*u+2*k*conj(ap)*a
-		-2*k*conj(bp)*b+myI*_v*conj(bp)*v
-		-myI*_v*conj(vp)*b-2*k*conj(vp)*v;
-	    }
-	    _chern += Theta1*Theta2/pow(_bdg_E[ih]-_bdg_E[ip],2.0)*2.0;
+      for(int ih = lowerbound; ih < 2*pblock; ++ih) { // hole branch
+	for(int ip = 2*pblock;ip<=upperbound;++ip){ // particle branch 
+	  Theta1 = complex<double> (0.0,0.0);
+	  Theta2 = complex<double> (0.0,0.0);
+	  for(int i = 0; i < pblock; ++i){ // frequency block adds up
+	    u = _bdg_V(i*4,ih);
+	    a = _bdg_V(i*4+1,ih);
+	    b = _bdg_V(i*4+2,ih);
+	    v = _bdg_V(i*4+3,ih);	    
+	    up = _bdg_V(i*4,ip);
+	    ap = _bdg_V(i*4+1,ip);
+	    bp = _bdg_V(i*4+2,ip);
+	    vp = _bdg_V(i*4+3,ip);
+	    Theta1 += 2*k*up*conj(u)+_v*ap*conj(u)
+	      +_v*up*conj(a)+2*k*ap*conj(a)
+	      -2*k*bp*conj(b)+_v*vp*conj(b)
+	      +_v*bp*conj(v)-2*k*vp*conj(v);
+	    Theta2 += 2*k*conj(up)*u-myI*_v*conj(up)*a
+	      +myI*_v*conj(ap)*u+2*k*conj(ap)*a
+	      -2*k*conj(bp)*b+myI*_v*conj(bp)*v
+	      -myI*_v*conj(vp)*b-2*k*conj(vp)*v;
 	  }
+	  _chern += -2.0*Theta1*Theta2/pow(_bdg_E[ih]-_bdg_E[ip],2.0)*2.0;
+	}
       }
       _temp_curv = _chern.imag();
-      _chern = -2.0*_chern*k*gauss_w_k[nk];
+      _chern = _chern*k*gauss_w_k[nk];
     }
   }
 }
@@ -264,11 +272,11 @@ void cChern::update_kxky(double kx, double ky){
     p = i-_PMAX;
     // only lower left part of the matrix is needed for self-adjoint matrix storage.
     _bdg_H(i*4,i*4)     = complex<double>(xi+_h+2*M_PI*p/_T,0.0);
-    _bdg_H(i*4,i*4+1)   = complex<double>(_v*kx,-_v*ky);
+    //    _bdg_H(i*4,i*4+1)   = complex<double>(_v*kx,-_v*ky);
     _bdg_H(i*4+1,i*4)   = complex<double>(_v*kx,_v*ky);
     _bdg_H(i*4+1,i*4+1) = complex<double>(xi-_h+2*M_PI*p/_T,0.0);
     _bdg_H(i*4+2,i*4+2) = complex<double>(-(xi+_h-2*M_PI*p/_T),0.0);
-    _bdg_H(i*4+2,i*4+3) = complex<double>(_v*kx, _v*ky);
+    //    _bdg_H(i*4+2,i*4+3) = complex<double>(_v*kx, _v*ky);
     _bdg_H(i*4+3,i*4+2) = complex<double>(_v*kx,-_v*ky);
     _bdg_H(i*4+3,i*4+3) = complex<double>(-(xi-_h-2*M_PI*p/_T),0.0);
   }
