@@ -185,9 +185,9 @@ void cChern::update(int nk){
 	Gamma2 = complex<double> (0.0,0.0);
 	t = 0.0;
 	for (int ig = 0; ig < count; ++ig) {
-	  Gamma1 += abs(Delta_t(ig)) 
+	  Gamma1 += (Delta_t(ig)) 
 	    * complex<double> (cos(2*M_PI*(q-p)*t/_T), sin(2*M_PI*(q-p)*t/_T));
-	  Gamma2 += abs(Delta_t(ig)) 
+	  Gamma2 += conj(Delta_t(ig)) 
 	    * complex<double> (cos(2*M_PI*(q-p)*t/_T), sin(2*M_PI*(q-p)*t/_T));
 	  t += dt;
 	}
@@ -211,22 +211,22 @@ void cChern::update(int nk){
     _bdg_E = ces.eigenvalues(); 
 // assuming eigenvalues are sorted in ascending order, but could be wrong since Eigen library does not gurantee that... Oops... Good luck!
     _bdg_V = ces.eigenvectors();
-    
+    /*
     for(int ip = 0; ip < 2*pblock;++ip){
-      if (_bdg_E[ip]/(M_PI/_T) >= -1.0) {
+      if (_bdg_E[ip]/(M_PI/_T) >= -2.0) {
 	lowerbound = ip;
 	break;
       }
     }
     for(int ip = 2*pblock; ip < pblock4;++ip){
-      if (_bdg_E[ip]/(M_PI/_T) >= 1.0) {
+      if (_bdg_E[ip]/(M_PI/_T) >= 2.0) {
 	upperbound = ip;
 	break;
       }
     }
-    
-    //    lowerbound = 0;
-    //    upperbound = pblock4-1;
+    */
+    lowerbound = 0;
+    upperbound = pblock4-1;
     if (lowerbound < 0 || upperbound < 0){
       _temp_curv = 0.0;
       _chern = complex<double> (0.0,0.0); 
