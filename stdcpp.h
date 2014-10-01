@@ -25,15 +25,13 @@ template <typename T> int sgn(T val) {
     return (T(0) < val) - (val < T(0));
 }
 
-struct sPhys {
-    double mu;
-    double T;
-};
-
 struct sPara {
-    double t; // inverse scattering length, or bound state energy Eb in 2D
-    double h; // zeeman field
-    double v; // rashba SOC strength
+  double mu;
+  double J;
+  double b;
+  double a;
+  double Delta0;
+  double omega;
 };
 
 struct sConf {

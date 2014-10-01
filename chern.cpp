@@ -10,9 +10,9 @@ int cChern::compute_count(int rank, int size){
   // compute distribution count: the last rank does the remaineder job while the rest do the most even work.                                            
   int result;
   if (rank != size-1) {
-    result = int(_NKX/size);
+    result = int(_NKX2/size);
   } else {
-    result = int(_NKX/size) + _NKX % size;
+    result = int(_NKX2/size) + _NKX2 % size;
  }
   return result;
 }
@@ -32,15 +32,15 @@ void cChern::distribution(){
   rank = COMM_WORLD.Get_rank();
   size = COMM_WORLD.Get_size();
   if (rank == root){ // send process is only root significant                   
-    sendbuf = new int[_NKX];
-    for(int i = 0; i< _NKX; ++i){
+    sendbuf = new int[_NKX2];
+    for(int i = 0; i< _NKX2; ++i){
       sendbuf[i] = i;
     }
     sendcounts = new int[size];
     displs = new int[size];
     for(int i=0; i<size; i++){
       sendcounts[i] = compute_count(i,size);
-      displs[i] = i*int(_NKX/size);
+      displs[i] = i*int(_NKX2/size);
     }
   }
   recvcount = compute_count(rank,size); // This is a rank dependent variable.   
@@ -77,8 +77,8 @@ void cChern::distribution(){
   MPI_Reduce(&chern_rank_real, &total_chern, 1, MPI_DOUBLE, MPI_SUM, root, MPI_COMM_WORLD);
   if (root==rank) {
     cout << "Total Chern Number is: " << total_chern << endl;
-    curvature = new double [_NKX];
-    bdgE = new double [_NKX*pblock4];
+    curvature = new double [_NKX2];
+    bdgE = new double [_NKX2*pblock4];
     recvcounts = new int[size];
     displs_r = new int[size];
     recvcountsE = new int[size];
@@ -96,23 +96,33 @@ void cChern::distribution(){
   MPI_Gatherv(curvature_rank,recvcount,MPI_DOUBLE,curvature,recvcounts,displs_r,MPI_DOUBLE,root,COMM_WORLD);
   MPI_Gatherv(bdgE_rank,stride,MPI_DOUBLE,bdgE,recvcountsE,displs_rE,MPI_DOUBLE,root,COMM_WORLD);
   if (root==rank) {
-    ofstream curv_output;
-    curv_output.open("curvature_rot.OUT");
-    assert(curv_output.is_open());
-    for(int nk = 0;nk <_NKX;++nk){
-      curv_output << gauss_k[nk] << '\t' << curvature[nk] << endl;
+    ofstream curv_output,AKX,AKY;
+    curv_output.open("curvature.OUT");    assert(curv_output.is_open());
+    AKX.open("AKX.OUT");    assert(AKX.is_open());
+    AKY.open("AKY.OUT");    assert(AKY.is_open());
+    for(int nkx = 0;nkx <_NKX;++nkx) {
+      AKX << gauss_k[nkx] << endl;
+      AKY << gauss_k[nkx] << endl;
     }
-    curv_output.close();
+    for(int nky = 0;nky <_NKX;++nky){
+      for(int nkx = 0;nkx <_NKX;++nkx){
+	curv_output << curvature[nkx+nky*_NKX] << '\t';
+      }
+      curv_output << endl;
+    }
+    curv_output.close();AKX.close();AKY.close();
+    /*
     ofstream bdgE_output;
     bdgE_output.open("bdgE.OUT");
     assert(bdgE_output.is_open());
-    for(int nk = 0;nk <_NKX;++nk){
-      for(int ibdgE=0;ibdgE<pblock4;++ibdgE){
-	bdgE_output << bdgE[nk*pblock4+ibdgE] << '\t';
+	for(int ibdgE=0;ibdgE<pblock4;++ibdgE){
+	  bdgE_output << bdgE[nk*pblock4+ibdgE] << '\t';
+
       }
       bdgE_output << endl;
     }
     bdgE_output.close();
+    */
     /*    complex<double> temp ;
     ofstream bdg;
     bdg.open("H.OUT");
@@ -143,7 +153,7 @@ void cChern::construction(){
   cout << "construction completed" << endl;
   gauss_k = new double [_NKX];
   gauss_w_k = new double [_NKX];
-  gauss_lgwt(_NKX,0.0,kmax,gauss_k,gauss_w_k);
+  gauss_lgwt(_NKX,-kmax,kmax,gauss_k,gauss_w_k);
 }
 
 void cChern::update(int nk){
@@ -151,7 +161,7 @@ void cChern::update(int nk){
     _bdg_H.setZero(); // This is done only once.
     //int p, q;
     // The off-diagonal coupling introduced from time-dependent order parameter should be computed only here.
-    complex<double> Gamma1, Gamma2;
+    //    complex<double> Gamma1, Gamma2;
     /*FILE *sf_inputR, *sf_inputI;
     // TODO: modify input file name   
     sf_inputR = fopen ("Rdata_2109.dat","r"); 
@@ -170,9 +180,9 @@ void cChern::update(int nk){
     }
     fclose (sf_inputR);
     fclose (sf_inputI);*/
-    for (int i = 0; i < pblock; ++i) {
+    //for (int i = 0; i < pblock; ++i) {
       //p = i-_PMAX;
-      for (int j = 0; j <=i; ++j) { 
+      //for (int j = 0; j <=i; ++j) { 
 	//q = j-_PMAX;
 	/*Gamma1 = complex<double> (0.0,0.0);
 	Gamma2 = complex<double> (0.0,0.0);
@@ -182,22 +192,27 @@ void cChern::update(int nk){
 	  Gamma2 += abs(Delta_t(ig)) * complex<double> (cos(2*M_PI*(q-p)*t/_T), sin(2*M_PI*(q-p)*t/_T));
 	  t += dt;
 	  }*/
-	Gamma1 = complex<double> (1.0,0.0);
-	Gamma2 = complex<double> (1.0,0.0);
-	_bdg_H(i*4,  j*4+3) = -Gamma1;
-	_bdg_H(i*4+1,j*4+2) =  Gamma1;
-	_bdg_H(i*4+2,j*4+1) =  Gamma2;
-	_bdg_H(i*4+3,j*4)   = -Gamma2;
-      }
-    }
+	//Gamma1 = complex<double> (1.0,0.0);
+	//Gamma2 = complex<double> (1.0,0.0);
+	//_bdg_H(i*4,  j*4+3) = -Gamma1;
+	//_bdg_H(i*4+1,j*4+2) =  Gamma1;
+	//_bdg_H(i*4+2,j*4+1) =  Gamma2;
+	//_bdg_H(i*4+3,j*4)   = -Gamma2;
+    //}
+    //}
   } else {
     int lowerbound = 0;
-    int upperbound = 3;
-    double k = gauss_k[nk];
+    int upperbound = 1;
+    int nkx = nk % _NKX;     // --> the modulo (because nk = nkx+ nky * NKX )
+    int nky = int (nk/_NKX); // --> the floor
+    //    double kx = -kmax + nkx * kmax *2.0 /(_NKX-1);
+    //    double ky = -kmax + nky * kmax *2.0 /(_NKX-1);
+    double kx = gauss_k[nkx];
+    double ky = gauss_k[nky];
     SelfAdjointEigenSolver<MatrixXcd> ces;
-    complex<double> u,a,b,v,up,ap,bp,vp, Theta1,Theta2, temp;
+    complex<double> u,v,up,vp, Theta1,Theta2, temp;
     complex<double> myI (0.0,1.0);
-    update_kxky(k,k);
+    update_kxky(kx,ky);
     ces.compute(_bdg_H);
     _bdg_E = ces.eigenvalues(); // assuming eigenvalues are sorted in ascending order, but could be wrong since Eigen library does not gurantee that... Oops... Good luck!
     _bdg_V = ces.eigenvectors();
@@ -220,50 +235,40 @@ void cChern::update(int nk){
     } else {
       // cout  <<"lower bound = " << lowerbound << " upper bound = " << upperbound << ", and " << upperbound-lowerbound << " is considered for computation." <<endl;
       _chern = complex<double> (0.0,0.0);
-      for(int ih = lowerbound; ih < 2*pblock; ++ih) { // hole branch contribution 
-	  for(int ip = 2*pblock;ip<=upperbound;++ip){ // particle branch contribution
+      for(int ih = lowerbound; ih < pblock; ++ih) { // hole branch contribution 
+	  for(int ip = pblock;ip<=upperbound;++ip){ // particle branch contribution
 	    Theta1 = complex<double> (0.0,0.0);
 	    Theta2 = complex<double> (0.0,0.0);
 	    for(int i = 0; i < pblock; ++i){ // frequency block adds up
-	      u = _bdg_V(i*4,ih);
-	      a = _bdg_V(i*4+1,ih);
-	      b = _bdg_V(i*4+2,ih);
-	      v = _bdg_V(i*4+3,ih);	    
-	      up = _bdg_V(i*4,ip);
-	      ap = _bdg_V(i*4+1,ip);
-	      bp = _bdg_V(i*4+2,ip);
-	      vp = _bdg_V(i*4+3,ip);
-	      Theta1 += 2*k*up*conj(u)+_v*ap*conj(u)
-		+_v*up*conj(a)+2*k*ap*conj(a)
-		-2*k*bp*conj(b)+_v*vp*conj(b)
-		+_v*bp*conj(v)-2*k*vp*conj(v);
-	      Theta2 += 2*k*conj(up)*u-myI*_v*conj(up)*a
-		+myI*_v*conj(ap)*u+2*k*conj(ap)*a
-		-2*k*conj(bp)*b+myI*_v*conj(bp)*v
-		-myI*_v*conj(vp)*b-2*k*conj(vp)*v;
+	      u = _bdg_V(i*2,ih);
+	      v = _bdg_V(i*2+1,ih);	    
+	      up = _bdg_V(i*2,ip);
+	      vp = _bdg_V(i*2+1,ip);
+	      Theta1 += -(2.0*_b*sin(kx)+_J*sin(kx)*cos(ky))*up*conj(u)
+		+_a*cos(kx)*vp*conj(u)
+		+_a*cos(kx)*up*conj(v)
+		+(2.0*_b*sin(kx)+_J*sin(kx)*cos(ky))*vp*conj(v);
+	      Theta2 += -(2.0*_b*sin(ky)+_J*cos(kx)*sin(ky))*u*conj(up)
+		-myI*_a*cos(ky)*v*conj(up)
+		+myI*_a*cos(ky)*u*conj(vp)
+		+(2.0*_b*sin(ky)+_J*cos(kx)*sin(ky))*v*conj(vp);
 	    }
-	    _chern += Theta1*Theta2/pow(_bdg_E[ih]-_bdg_E[ip],2.0)*2.0;
+	    _chern += -2.0*Theta1*Theta2/pow(_bdg_E[ih]-_bdg_E[ip],2.0)/(2.0*M_PI);
 	  }
       }
       _temp_curv = _chern.imag();
-      _chern = -2.0*_chern*k*gauss_w_k[nk];
+      _chern = _chern*gauss_w_k[nky]*gauss_w_k[nkx];
     }
   }
 }
 
 void cChern::update_kxky(double kx, double ky){
-  double xi = kx*kx + ky*ky - _mu;
   int p;
   for (int i = 0; i < pblock; ++i) {
     p = i-_PMAX;
     // only lower left part of the matrix is needed for self-adjoint matrix storage.
-    _bdg_H(i*4,i*4)     = complex<double>(xi+_h+2*M_PI*p/_T,0.0);
-    _bdg_H(i*4,i*4+1)   = complex<double>(_v*kx,-_v*ky);
-    _bdg_H(i*4+1,i*4)   = complex<double>(_v*kx,_v*ky);
-    _bdg_H(i*4+1,i*4+1) = complex<double>(xi-_h+2*M_PI*p/_T,0.0);
-    _bdg_H(i*4+2,i*4+2) = complex<double>(-(xi+_h+2*M_PI*p/_T),0.0);
-    _bdg_H(i*4+2,i*4+3) = complex<double>(_v*kx, _v*ky);
-    _bdg_H(i*4+3,i*4+2) = complex<double>(_v*kx,-_v*ky);
-    _bdg_H(i*4+3,i*4+3) = complex<double>(-(xi-_h+2*M_PI*p/_T),0.0);
+    _bdg_H(i*2,i*2)     = complex<double>(_mu-_J-2.0*_b*(2.0-cos(kx)-cos(ky))+_J*cos(kx)*cos(ky),0.0);
+    _bdg_H(i*2+1,i*2)   = complex<double>(_a*sin(kx),_a*sin(ky));
+    _bdg_H(i*2+1,i*2+1) = complex<double>(-_mu+_J+2.0*_b*(2.0-cos(kx)-cos(ky))-_J*cos(kx)*cos(ky),0.0);
   }
 }

@@ -9,17 +9,17 @@
 #include "stdcpp.h"
 #include "chern.h"
 int main(int argc, char** argv){
-	double  muInf, Tperiod, hf;
-	// TODO: modify dataset
-	// dataset: (hi, hf) = (2.1, 0.9)
-	hf = 1.05;
-	muInf = 0.119725329786196;
-	Tperiod = 26.239999999999998;
-	sPara para; para.t = 0.2; para.h = hf;para.v = 1.2;
-	sPhys phys; phys.mu = muInf; phys.T = Tperiod;
-	cChern Chern(para, phys, argc, argv);
-	Chern.distribution();
-	return 0;
+  double  mu, J, b, a, Delta0, omega;
+  mu = 1.0;
+  J = 1.5*mu;
+  b = 1.5*mu;
+  Delta0 = 0.0;
+  a = 4.0*mu;
+  omega = 1.0/0.07*mu;
+  sPara para; para.mu = mu; para.J = J;para.b = b;para.a = a;para.Delta0=Delta0;para.omega = omega;
+  cChern Chern(para, argc, argv);
+  Chern.distribution();
+  return 0;
 }
 
 
