@@ -32,6 +32,7 @@ struct sPara {
   double a;
   double Delta0;
   double omega;
+  double L;
 };
 
 struct sConf {
