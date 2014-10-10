@@ -86,7 +86,7 @@ void cChern::distribution(){
     ofstream KX;
     KX.open("KX.OUT");    
     ofstream bdgE_output;
-    bdgE_output.open("edgeE.OUT");
+    bdgE_output.open("floquetE.OUT");
     assert(bdgE_output.is_open());
     for(int nkx = 0;nkx <_NKX;++nkx) {
       KX << gauss_k[nkx] << endl;
@@ -135,47 +135,17 @@ void cChern::construction(){
 void cChern::update(int nk){
   if (nk == -1) {
     _bdg_H.setZero(); // This is done only once.
-    //int p, q;
     // The off-diagonal coupling introduced from time-dependent order parameter should be computed only here.
-    //    complex<double> Gamma1, Gamma2;
-    /*FILE *sf_inputR, *sf_inputI;
-    // TODO: modify input file name   
-    sf_inputR = fopen ("Rdata_2109.dat","r"); 
-    sf_inputI = fopen ("Idata_2109.dat","r");
-    assert (sf_inputR != NULL);
-    assert (sf_inputI != NULL);
-    double dt = 0.0005;
-    double t = 0.0;
-    VectorXcd Delta_t(100000);
-    Delta_t.setZero();
-    int count = 0;
-    double reD, imD;
-    while (fscanf(sf_inputR, "%lf", &reD) != EOF && fscanf(sf_inputI, "%lf", &imD) != EOF ){
-      Delta_t(count) = complex<double>(reD,imD);
-      count++;
+    for (int i = 0; i < pblock; ++i) {
+      for (int j = 0; j<i;++j){
+	if (j == i-1){
+	  for(int in = 0; in < _NMAX;++in){
+	    _bdg_H(i*2*_NMAX+in*2,  j*2*_NMAX+in*2)   =  _Delta0/2.0;
+	    _bdg_H(i*2*_NMAX+in*2+1,j*2*_NMAX+in*2+1) = -_Delta0/2.0;
+	  }
+	}
+      }
     }
-    fclose (sf_inputR);
-    fclose (sf_inputI);*/
-    //for (int i = 0; i < pblock; ++i) {
-      //p = i-_PMAX;
-      //for (int j = 0; j <=i; ++j) { 
-	//q = j-_PMAX;
-	/*Gamma1 = complex<double> (0.0,0.0);
-	Gamma2 = complex<double> (0.0,0.0);
-	t = 0.0;
-	for (int ig = 0; ig < count; ++ig) {
-	  Gamma1 += abs(Delta_t(ig)) * complex<double> (cos(2*M_PI*(q-p)*t/_T), sin(2*M_PI*(q-p)*t/_T));
-	  Gamma2 += abs(Delta_t(ig)) * complex<double> (cos(2*M_PI*(q-p)*t/_T), sin(2*M_PI*(q-p)*t/_T));
-	  t += dt;
-	  }*/
-	//Gamma1 = complex<double> (1.0,0.0);
-	//Gamma2 = complex<double> (1.0,0.0);
-	//_bdg_H(i*4,  j*4+3) = -Gamma1;
-	//_bdg_H(i*4+1,j*4+2) =  Gamma1;
-	//_bdg_H(i*4+2,j*4+1) =  Gamma2;
-	//_bdg_H(i*4+3,j*4)   = -Gamma2;
-    //}
-    //}
     double Lambda;
     int n,m;
     for (int i = 0; i < pblock; ++i) {
@@ -185,8 +155,8 @@ void cChern::update(int nk){
 	  m = 1+im;
 	  if (in!=im){
 	    Lambda = 2.0*_a/_L*m*n*(1-pow(-1.0,m+n))/(n*n-m*m);
-	    _bdg_H(i*pblock4*_NMAX+in*2,i*pblock4*_NMAX+im*2+1) = -Lambda; 
-	    _bdg_H(i*pblock4*_NMAX+in*2+1,i*pblock4*_NMAX+im*2) = Lambda;
+	    _bdg_H(i*2*_NMAX+in*2,  i*2*_NMAX+im*2+1) = -Lambda; 
+	    _bdg_H(i*2*_NMAX+in*2+1,i*2*_NMAX+im*2)   =  Lambda;
 	  }
 	}
       }
@@ -209,9 +179,15 @@ void cChern::update_kxky(double kx){
     for(int in = 0; in < _NMAX;++in){
       n = in + 1;
       // only lower left part of the matrix is needed for self-adjoint matrix storage.
-      _bdg_H(i*2*_NMAX+in*2,i*2*_NMAX+in*2)     = _mu-_J-2.0*_b*(0.5*kx*kx+0.5*pow(n*M_PI/_L,2.0))+_J*(1-0.5*kx*kx)*(1-0.5*pow(n*M_PI/_L,2.0));
+      _bdg_H(i*2*_NMAX+in*2,i*2*_NMAX+in*2) = _mu-_J
+	-2.0*_b*(0.5*kx*kx+0.5*pow(n*M_PI/_L,2.0))
+	+_J*(1-0.5*kx*kx)*(1-0.5*pow(n*M_PI/_L,2.0))
+	+p*_omega;
       _bdg_H(i*2*_NMAX+in*2+1,i*2*_NMAX+in*2)   = _a*kx;
-      _bdg_H(i*2*_NMAX+in*2+1,i*2*_NMAX+in*2+1) = -_mu+_J+2.0*_b*(0.5*kx*kx+0.5*pow(n*M_PI/_L,2.0))-_J*(1-0.5*kx*kx)*(1-0.5*pow(n*M_PI/_L,2.0));
+      _bdg_H(i*2*_NMAX+in*2+1,i*2*_NMAX+in*2+1) = -_mu+_J
+	+2.0*_b*(0.5*kx*kx+0.5*pow(n*M_PI/_L,2.0))
+	-_J*(1-0.5*kx*kx)*(1-0.5*pow(n*M_PI/_L,2.0))
+	+p*_omega;
     }
   }
 }

@@ -4,7 +4,7 @@ CFLAGS=-c -Wall -I${eigenbin}
 LFLAGS=-limf -lm
 all: chern
 
-chern: main.o chern.o lgwt.o
+chern: main.o chern.o lgwt.o *.h
 	$(CC) main.o chern.o lgwt.o -o chern $(LFLAGS)
 
 main.o: main.cpp
