@@ -12,7 +12,7 @@ int main(int argc, char** argv){
   double  mu, J, b, a, Delta0, omega, L;
   mu = 1.0;
   J = 1.5*mu;
-  b = 1.5*mu;
+  b = 0.5*mu;
   Delta0 = 1.0*mu;
   a = 4.0*mu;
   //omega = Delta0/0.07;

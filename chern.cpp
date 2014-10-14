@@ -49,81 +49,74 @@ void cChern::distribution(){
   stride = pblock4*recvcount*_NMAX;
   for(int ig = 0; ig<size; ++ig) {
     if (ig ==rank){
+      chern_rank = complex<double> (0.0,0.0);
       cout << "rank" << ig << "has started"<< endl;
-      bdgE_rank = new double[stride];
+      curvature_rank = new double[recvcount];
       for (int i=0; i<recvcount; ++i) {
 	clock_t start = clock(); 
         update(recvbuf[i]);
 	clock_t end = clock(); 
 	if (rank==root) cout << "task " << recvbuf[i] <<"out of " << recvcount << "used " << double (end-start)/ (double) CLOCKS_PER_SEC  << endl; 
-	for(int ibdgE = 0;ibdgE<pblock4;++ibdgE) {
-	  for(int in = 0;in<_NMAX;++in){
-	    bdgE_rank[i*pblock4*_NMAX+ibdgE*_NMAX+in] = _bdg_E(ibdgE*_NMAX+in);
-	  }
-	}
+	chern_rank += _chern;
+        curvature_rank[i] = _temp_curv;
       }
       cout << "rank " << rank << " has finished "<< recvcount << " tasks, " << endl;
     }
   }
+  chern_rank_real = chern_rank.imag();
+  for(int ig = 0; ig<size; ++ig) {
+    if (ig ==rank){
+      cout << "rank" << ig << "has chern number"<< chern_rank << endl;
+    }
+    MPI_Barrier(COMM_WORLD);
+  }
+  MPI_Reduce(&chern_rank_real, &total_chern, 1, MPI_DOUBLE, MPI_SUM, root, MPI_COMM_WORLD);
   if (root==rank) {
-    bdgE = new double [_NKX2*pblock4*_NMAX];
+    cout << "Total Chern Number is: " << total_chern << endl;
+    curvature = new double [_NKX2];
     recvcounts = new int[size];
     displs_r = new int[size];
-    recvcountsE = new int[size];
-    displs_rE = new int[size];
-    offset = 0; offsetE = 0;
+    offset = 0;
     for(int ig = 0;ig<size;++ig){
       recvcounts[ig] = compute_count(ig,size);
       displs_r[ig] = offset;
       offset += recvcounts[ig];
-      recvcountsE[ig] = compute_count(ig,size)*pblock4*_NMAX;
-      displs_rE[ig] = offsetE;
-      offsetE += recvcountsE[ig];
     }
   }
-  MPI_Gatherv(bdgE_rank,stride,MPI_DOUBLE,bdgE,recvcountsE,displs_rE,MPI_DOUBLE,root,COMM_WORLD);
+  MPI_Gatherv(curvature_rank,recvcount,MPI_DOUBLE,curvature,recvcounts,displs_r,MPI_DOUBLE,root,COMM_WORLD);
   if (root==rank) {
-    ofstream KX;
-    KX.open("KX.OUT");    
-    ofstream bdgE_output;
-    bdgE_output.open("floquetE.OUT");
-    assert(bdgE_output.is_open());
-    for(int nkx = 0;nkx <_NKX;++nkx) {
-      KX << gauss_k[nkx] << endl;
-      for(int ibdgE=0;ibdgE<pblock4;++ibdgE){
-	for(int in = 0; in<_NMAX; ++in){
-	  bdgE_output << bdgE[nkx*pblock4*_NMAX+ibdgE*_NMAX+in] << '\t';
-	}
+    ofstream curv_output, akx, aky;
+    curv_output.open("curvature.OUT");
+    akx.open("AKX.OUT");
+    aky.open("AKY.OUT");
+    assert(curv_output.is_open());
+    assert(akx.is_open());
+    assert(aky.is_open());
+    for(int nky = 0;nky <_NKX;++nky){
+      for(int nkx = 0;nkx<_NKX;++nkx){
+        curv_output << curvature[nkx+nky*_NKX] << '\t';
+        akx << gauss_k[nkx] << '\t';
+        aky << gauss_k[nky] << '\t';
       }
-      bdgE_output << endl;
+      curv_output << endl;
+      akx << endl;
+      aky << endl;
     }
-    KX.close();    
-    bdgE_output.close();
-    /*    complex<double> temp ;
-    ofstream bdg;
-    bdg.open("H.OUT");
-    assert(bdg.is_open());
-    for (int ip = 0;ip<pblock4;++ip){
-      for (int iq = 0;iq<pblock4;++iq){
-	temp = 	_bdg_H(ip,iq)-conj(_bdg_H(iq,ip)) ;
-	bdg << temp.imag() << '\t';
-      }
-      bdg << endl;
-    }
-    bdg.close();*/
+    curv_output.close();
+    akx.close();
+    aky.close();
     delete []curvature;
     delete []sendbuf;
     delete []sendcounts;
     delete []displs;
     delete []recvcounts;
     delete []displs_r;
-    delete []recvcountsE;
-    delete []displs_rE;
   }
   delete []recvbuf;
   delete []curvature_rank;
   Finalize();
 }
+
 void cChern::construction(){
   update(-1); // arbitrary null construction.
   cout << "construction completed" << endl;
@@ -140,53 +133,88 @@ void cChern::update(int nk){
       for (int j = 0; j<i;++j){
 	if (j == i-1){
 	  for(int in = 0; in < _NMAX;++in){
-	    _bdg_H(i*2*_NMAX+in*2,  j*2*_NMAX+in*2)   =  _Delta0/2.0;
-	    _bdg_H(i*2*_NMAX+in*2+1,j*2*_NMAX+in*2+1) = -_Delta0/2.0;
+	    _bdg_H(i*2*_NMAX+in*2,  j*2*_NMAX+in*2).real()   =  _Delta0/2.0;
+	    _bdg_H(i*2*_NMAX+in*2+1,j*2*_NMAX+in*2+1).real() = -_Delta0/2.0;
 	  }
 	}
       }
     }
-    double Lambda;
-    int n,m;
-    for (int i = 0; i < pblock; ++i) {
-      for(int in = 0; in < _NMAX;++in){
-	n = 1+in;
-	for(int im = 0; im < in; ++im){
-	  m = 1+im;
-	  if (in!=im){
-	    Lambda = 2.0*_a/_L*m*n*(1-pow(-1.0,m+n))/(n*n-m*m);
-	    _bdg_H(i*2*_NMAX+in*2,  i*2*_NMAX+im*2+1) = -Lambda; 
-	    _bdg_H(i*2*_NMAX+in*2+1,i*2*_NMAX+im*2)   =  Lambda;
+  } else {
+    int nkx = nk % _NKX;
+    int nky = int (nk/_NKX);
+    int lowerbound = -999; 
+    int upperbound = -999; // ridiculous negative flag 
+    double kx = gauss_k[nkx];
+    double ky = gauss_k[nky];
+    SelfAdjointEigenSolver<MatrixXcd> ces;
+    complex<double> u,a,b,v,up,ap,bp,vp, Theta1,Theta2, temp;
+    complex<double> myI (0.0,1.0);
+    update_kxky(kx,ky);
+    ces.compute(_bdg_H);
+    _bdg_E = ces.eigenvalues();
+    _bdg_V = ces.eigenvectors();
+    for(int ip = 0; ip < pblock;++ip){
+      if (_bdg_E[ip]/(M_PI/_T) >= -1.0) {
+        lowerbound = ip;
+        break;
+      }
+    }
+    for(int ip = pblock; ip < pblock4;++ip){
+      if (_bdg_E[ip]/(M_PI/_T) >= 1.0) {
+        upperbound = ip-1;
+        break;
+      }
+    }
+    if (lowerbound < 0 || upperbound < 0){
+      _temp_curv = 0.0;
+      _chern = complex<double> (0.0,0.0);
+      //      cout << "no contribution is added" << endl;
+    } else {
+      //      cout  <<"lower bound = " << lowerbound << " upper bound = " << upperbound << ", and " << upperbound-lowerbound+1 << " is considered for computation." <<endl;
+      _chern = complex<double> (0.0,0.0);
+      for(int ih = lowerbound; ih < pblock; ++ih) { // hole branch 
+	for(int ip = pblock;ip<=upperbound;++ip){ // particle branch
+	  Theta1 = complex<double> (0.0,0.0);
+	  Theta2 = complex<double> (0.0,0.0);
+	  for(int i = 0; i < pblock; ++i){ // frequency block adds up         
+	    u = _bdg_V(i*2,ih);
+	    v = _bdg_V(i*2+1,ih);
+	    up = _bdg_V(i*2,ip);
+	    vp = _bdg_V(i*2+1,ip);
+	    Theta1 += -(2.0*_b*sin(kx)+_J*sin(kx)*cos(ky))*up*conj(u)
+	      +_a*cos(kx)*vp*conj(u)
+	      +_a*cos(kx)*up*conj(v)
+	      +(2.0*_b*sin(kx)+_J*sin(kx)*cos(ky))*vp*conj(v);
+	    Theta2 += -(2.0*_b*sin(ky)+_J*cos(kx)*sin(ky))*u*conj(up)
+	      -myI*_a*cos(ky)*v*conj(up)
+	      +myI*_a*cos(ky)*u*conj(vp)
+	      +(2.0*_b*sin(ky)+_J*cos(kx)*sin(ky))*v*conj(vp);
 	  }
+	  _chern += -2.0*Theta1*Theta2/pow(_bdg_E[ih]-_bdg_E[ip],2.0)/(2.0*M_PI);
 	}
       }
-    } 
-  } else {
-    int nkx = nk;
-    double kx = gauss_k[nkx];
-    SelfAdjointEigenSolver<MatrixXd> ces;
-    update_kxky(kx);
-    ces.compute(_bdg_H,0);
-    _bdg_E = ces.eigenvalues();
+      _temp_curv = _chern.imag();
+      _chern = _chern*gauss_w_k[nky]*gauss_w_k[nkx];
+    }
   }
 }
 
 
-void cChern::update_kxky(double kx){
+void cChern::update_kxky(double kx, double ky){
   int p,n;
   for (int i = 0; i < pblock; ++i) {
     p = i-_PMAX;
     for(int in = 0; in < _NMAX;++in){
       n = in + 1;
       // only lower left part of the matrix is needed for self-adjoint matrix storage.
-      _bdg_H(i*2*_NMAX+in*2,i*2*_NMAX+in*2) = _mu-_J
-	-2.0*_b*(0.5*kx*kx+0.5*pow(n*M_PI/_L,2.0))
-	+_J*(1-0.5*kx*kx)*(1-0.5*pow(n*M_PI/_L,2.0))
+      _bdg_H(i*2*_NMAX+in*2,i*2*_NMAX+in*2).real()     =  _mu-_J
+	-2.0*_b*(2.0-cos(kx)-cos(ky))
+	+_J*cos(kx)*cos(ky)
 	+p*_omega;
-      _bdg_H(i*2*_NMAX+in*2+1,i*2*_NMAX+in*2)   = _a*kx;
-      _bdg_H(i*2*_NMAX+in*2+1,i*2*_NMAX+in*2+1) = -_mu+_J
-	+2.0*_b*(0.5*kx*kx+0.5*pow(n*M_PI/_L,2.0))
-	-_J*(1-0.5*kx*kx)*(1-0.5*pow(n*M_PI/_L,2.0))
+      _bdg_H(i*2*_NMAX+in*2+1,i*2*_NMAX+in*2)   = complex<double>(_a*sin(kx),_a*sin(ky));
+      _bdg_H(i*2*_NMAX+in*2+1,i*2*_NMAX+in*2+1).real() = -_mu+_J
+	+2.0*_b*(2.0-cos(kx)-cos(ky))
+	-_J*cos(kx)*cos(ky)
 	+p*_omega;
     }
   }
