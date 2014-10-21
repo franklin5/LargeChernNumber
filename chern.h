@@ -37,7 +37,7 @@ public:
 	  _bdg_E(pblock4),
 	  _bdg_V(pblock4,pblock4),
 	  _bdg_H(pblock4,pblock4),_chern(1.0,0.0),
-	  kmax(3.0){}
+	  kmax(M_PI){}
 	  ~cChern(){
 	    delete []gauss_k;
 	    delete []gauss_w_k;}
