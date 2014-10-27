@@ -141,7 +141,7 @@ void cChern::update(int nk){
       _chern = _chern * temp/abs(temp); 
     }
     _chern = complex<double>(log(std::abs(_chern)),atan(_chern.imag()/_chern.real()));
-    _chern = _chern/2/M_PI/complex<double>(0.0,1.0);
+    _chern = _chern/2/M_PI*complex<double>(0.0,1.0);
     //    cout << _chern << endl;
   }
 }	    
@@ -150,9 +150,9 @@ void cChern::update_kxky(double kx, double ky){
   double xi = kx*kx + ky*ky - _mu;
   // only lower left part of the matrix is needed for storage.
     _bdg_H(0,0) = complex<double>(xi+_h,0.0);
-    _bdg_H(1,0) = complex<double>(_v*kx,-_v*ky);
+    _bdg_H(1,0) = complex<double>(_v*kx,_v*ky);
     _bdg_H(1,1) = complex<double>(xi-_h,0.0);
     _bdg_H(2,2) = complex<double>(-(xi+_h),0.0);
-    _bdg_H(3,2) = complex<double>(_v*kx,_v*ky);
+    _bdg_H(3,2) = complex<double>(_v*kx,-_v*ky);
     _bdg_H(3,3) = complex<double>(-(xi-_h),0.0);
 }
