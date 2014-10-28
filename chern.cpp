@@ -26,6 +26,7 @@ void cChern::distribution(){
   double chern_rank_real, total_chern;
   double *curvature_rank, *curvature;
   double *bdgE_rank, *bdgE;
+  double *localEig, *TotalEig;
   const int root = 0;
   int offset, offsetE;
   Init(_argc, _argv);
@@ -47,6 +48,7 @@ void cChern::distribution(){
   recvbuf = new int[recvcount]; // So is this array: rank dependent size        
   MPI_Scatterv(sendbuf,sendcounts,displs,MPI_INT,recvbuf,recvcount,MPI_INT,root,COMM_WORLD);
   stride = pblock4*recvcount*_NMAX;
+  localEig = new double[stride];
   for(int ig = 0; ig<size; ++ig) {
     if (ig ==rank){
       chern_rank = complex<double> (0.0,0.0);
@@ -59,6 +61,9 @@ void cChern::distribution(){
 	if (rank==root) cout << "task " << recvbuf[i] <<"out of " << recvcount << "used " << double (end-start)/ (double) CLOCKS_PER_SEC  << endl; 
 	chern_rank += _chern;
         curvature_rank[i] = _temp_curv;
+	for(int j = 0; j < _SMAX; ++j){
+	  localEig[j+i*_SMAX]=_bdg_E[j];
+	}
       }
       cout << "rank " << rank << " has finished "<< recvcount << " tasks, " << endl;
     }
@@ -84,34 +89,54 @@ void cChern::distribution(){
     }
   }
   MPI_Gatherv(curvature_rank,recvcount,MPI_DOUBLE,curvature,recvcounts,displs_r,MPI_DOUBLE,root,COMM_WORLD);
+  if (root==rank){
+    TotalEig = new double [_NKX2*_SMAX];
+    offset = 0;
+    for(int ig = 0;ig<size;++ig){
+      recvcounts[ig] = compute_count(ig,size)*_SMAX; // this is the only difference between TotalEig and curvature                                     
+      displs_r[ig] = offset;
+      offset += recvcounts[ig];
+    }
+  }
+  MPI_Gatherv(localEig, stride, MPI_DOUBLE, TotalEig, recvcounts, displs_r, MPI_DOUBLE, root, COMM_WORLD);
   if (root==rank) {
-    ofstream curv_output, akx, aky;
+    ofstream curv_output, akx, aky, spectrum_output;
+    spectrum_output.open("spectrum.OUT");
     curv_output.open("curvature.OUT");
     akx.open("AKX.OUT");
     aky.open("AKY.OUT");
     assert(curv_output.is_open());
     assert(akx.is_open());
     assert(aky.is_open());
+    assert(spectrum_output.is_open());
     for(int nky = 0;nky <_NKX;++nky){
       for(int nkx = 0;nkx<_NKX;++nkx){
         curv_output << curvature[nkx+nky*_NKX] << '\t';
         akx << gauss_k[nkx] << '\t';
         aky << gauss_k[nky] << '\t';
+	for (int q = 0; q<_SMAX;++q){
+          spectrum_output << TotalEig[(nkx+nky*_NKX)*_SMAX+q] << '\t';
+        }
+        spectrum_output << endl;
       }
       curv_output << endl;
       akx << endl;
       aky << endl;
+      spectrum_output << endl;
     }
     curv_output.close();
     akx.close();
     aky.close();
+    spectrum_output.close();
     delete []curvature;
     delete []sendbuf;
     delete []sendcounts;
     delete []displs;
     delete []recvcounts;
     delete []displs_r;
+    delete []TotalEig;
   }
+  delete []localEig;
   delete []recvbuf;
   delete []curvature_rank;
   Finalize();
