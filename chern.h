@@ -27,7 +27,7 @@ public:
 	  _J(para.mu), _a(para.a), _b(para.b),
 	  _mu(para.mu),_Delta0(para.Delta0),_omega(para.omega),_L(para.L),_T(2*M_PI/_omega),
 	  // TODO: modify frequency cutoff
-	  _PMAX(2), // number of frequency cutoff for time expansion
+	  _PMAX(11), // number of frequency cutoff for time expansion
 	  pblock(2*_PMAX+1),
 	  // TODO: modify mmtn space cutoff for the bulk system
 	  pblock4(2*pblock),
@@ -39,7 +39,7 @@ public:
 	  _bdg_V(pblock4*_NMAX,pblock4*_NMAX),
 	  _bdg_H(pblock4*_NMAX,pblock4*_NMAX),_chern(1.0,0.0),
 	  _temp_curv(0.0),
-	  kmax(M_PI*3){}
+	  kmax(M_PI){}
 	  ~cChern(){
 	    delete []gauss_k;
 	    delete []gauss_w_k;}

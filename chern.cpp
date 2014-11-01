@@ -154,16 +154,48 @@ void cChern::update(int nk){
   if (nk == -1) {
     _bdg_H.setZero(); // This is done only once.
     // The off-diagonal coupling introduced from time-dependent order parameter should be computed only here.
+    int p,q;
+    complex<double> Gamma;
+    double Delta1 = 0.6, Delta2 = 1.2;
+    double dt = 0.1;
+    int lengthoft = int(10*_T/dt);
+    complex<double> myI (0.0,1.0);
+    double *DELTA_T = new double [lengthoft];
+    ofstream output;
+    output.open("DELTA_T.OUT");
+    assert(output.is_open());
+    for(int it = 0;it<lengthoft;++it){
+      DELTA_T[it] = _Delta0 + Delta1*cos(2*M_PI/(2*_T)*it*dt) + Delta2*cos(2*M_PI/(5*_T)*it*dt);
+      output<< DELTA_T[it] << endl;
+    }
+    output.close();
     for (int i = 0; i < pblock; ++i) {
-      for (int j = 0; j<i;++j){
-	if (j == i-1){
-	  for(int in = 0; in < _NMAX;++in){
-	    _bdg_H(i*2*_NMAX+in*2,  j*2*_NMAX+in*2).real()   =  _Delta0/2.0;
-	    _bdg_H(i*2*_NMAX+in*2+1,j*2*_NMAX+in*2+1).real() = -_Delta0/2.0;
+      p = i-_PMAX;
+      for (int j = 0; j<=i;++j){
+	q = j-_PMAX;
+	
+	for(int in = 0; in < _NMAX;++in){
+	  /*Gamma = complex<double>(0.0,0.0);
+	  for(int it =  0;it<lengthoft;++i){
+	    Gamma += DELTA_T[it]/(10*_T)*exp(myI*(q-p)*_omega/10*it*dt)*dt;
+	    }
+	  _bdg_H(i*2*_NMAX+in*2,  j*2*_NMAX+in*2)   =  Gamma;
+	  _bdg_H(i*2*_NMAX+in*2+1,j*2*_NMAX+in*2+1) = -Gamma;
+*/
+	  if(q==p){
+	    _bdg_H(i*2*_NMAX+in*2,  j*2*_NMAX+in*2).real()   =  _Delta0;
+	    _bdg_H(i*2*_NMAX+in*2+1,j*2*_NMAX+in*2+1).real() = -_Delta0;
+	  } else if (q==p-5){
+	    _bdg_H(i*2*_NMAX+in*2,  j*2*_NMAX+in*2).real()   =  Delta1/2.0;
+	    _bdg_H(i*2*_NMAX+in*2+1,j*2*_NMAX+in*2+1).real() = -Delta1/2.0;
+	  } else if (q==p-2){
+	    _bdg_H(i*2*_NMAX+in*2,  j*2*_NMAX+in*2).real()   =  Delta2/2.0;
+	    _bdg_H(i*2*_NMAX+in*2+1,j*2*_NMAX+in*2+1).real() = -Delta2/2.0;
 	  }
 	}
       }
     }
+    delete []DELTA_T;
   } else {
     int nkx = nk % _NKX;
     int nky = int (nk/_NKX);
@@ -195,7 +227,7 @@ void cChern::update(int nk){
       _chern = complex<double> (0.0,0.0);
       //      cout << "no contribution is added" << endl;
     } else {
-      //      cout  <<"lower bound = " << lowerbound << " upper bound = " << upperbound << ", and " << upperbound-lowerbound+1 << " is considered for computation." <<endl;
+      //      cout  <<"lower bound = " << lowerbound << " upper bound = " << upperbound << ", and " << upperbound-lowerbound+1 << " branches are considered for computation." <<endl;
       _chern = complex<double> (0.0,0.0);
       for(int ih = lowerbound; ih < pblock; ++ih) { // hole branch 
 	for(int ip = pblock;ip<=upperbound;++ip){ // particle branch
